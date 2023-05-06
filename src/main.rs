@@ -95,9 +95,9 @@ fn create(
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(DB_PATH)?;
-    conn.execute("BEGIN TRANSACTION", ())?;
-    conn.execute(
+    let mut conn = Connection::open(DB_PATH)?;
+    let transaction = conn.transaction()?;
+    transaction.execute(
         "INSERT INTO workspaces (filesystem, user, name, \"group\", expiration_time)
             VALUES (?1, ?2, ?3, ?4, ?5)",
         (filesystem, user, name, group, Local::now() + *duration),
@@ -134,7 +134,7 @@ fn create(
         .args([&format!("{}:{}", user, group), mountpoint])
         .status()?;
     assert!(status.success(), "failed to change owner/group on dataset");
-    conn.execute("COMMIT", ())?;
+    transaction.commit()?;
 
     println!("Created workspace at {}", mountpoint);
     Ok(())
