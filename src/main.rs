@@ -78,7 +78,6 @@ mod cli {
             /// Filesystem of the workspace
             #[arg(short, long)]
             filesystem: String,
-
         },
         /// Clean up workspaces which have been expired for too long
         Clean {},
@@ -147,24 +146,26 @@ struct WorkspacesRow {
     filesystem: String,
     user: String,
     name: String,
-    group: String,
     expiration_time: DateTime<Local>,
 }
 
 fn list() -> Result<(), Box<dyn Error>> {
     let conn = Connection::open(Path::new(DB_PATH))?;
     let mut statement =
-        conn.prepare("SELECT filesystem, name, user, \"group\", expiration_time FROM workspaces")?;
+        conn.prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")?;
     let workspace_iter = statement.query_map([], |row| {
         Ok(WorkspacesRow {
             filesystem: row.get(0)?,
-            user: row.get(2)?,
-            name: row.get(1)?,
-            group: row.get(3)?,
-            expiration_time: row.get(4)?,
+            user: row.get(1)?,
+            name: row.get(2)?,
+            expiration_time: row.get(3)?,
         })
     })?;
 
+    println!(
+        "{:<16}{:<16}{:<16}{:<16}{:<8}{}",
+        "NAME", "USER", "FILESYSTEM", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
+    );
     for workspace in workspace_iter {
         let workspace = workspace?;
         let dataset_info = Command::new("zfs")
@@ -183,15 +184,18 @@ fn list() -> Result<(), Box<dyn Error>> {
         }
 
         print!(
-            "{:<8}  {:<12}  {:<12}  {:<12}",
-            workspace.filesystem, workspace.name, workspace.user, workspace.group
+            "{:<15}\t{:<15}\t{:<15}",
+            workspace.name, workspace.user, workspace.filesystem
         );
 
         if Local::now() > workspace.expiration_time {
-            print!("{:>8}", "expired");
+            print!(
+                "\tdeleted in {:>2}d",
+                (workspace.expiration_time + Duration::days(30) - Local::now()).num_days()
+            );
         } else {
             print!(
-                "{:>7}d",
+                "\texpires in {:>2}d",
                 (workspace.expiration_time - Local::now()).num_days()
             );
         }
@@ -206,7 +210,7 @@ fn list() -> Result<(), Box<dyn Error>> {
             })
             .collect::<HashMap<_, _>>();
 
-        println!("  {:>6}  {}", info["logicalreferenced"], info["mountpoint"]);
+        println!("\t{:>6}\t{}", info["logicalreferenced"], info["mountpoint"]);
     }
     Ok(())
 }
