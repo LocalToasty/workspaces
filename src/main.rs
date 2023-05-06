@@ -1,9 +1,7 @@
 use chrono::{DateTime, Duration, Local};
 use clap::Parser;
 use rusqlite::{Connection, Result};
-use std::collections::HashMap;
-use std::error::Error;
-use std::process::Command;
+use std::{collections::HashMap, error::Error, process::Command};
 use users::{get_current_username, get_effective_uid};
 
 const DB_PATH: &str = "workspaces.db";
@@ -11,8 +9,8 @@ const DB_PATH: &str = "workspaces.db";
 mod cli {
     use chrono::Duration;
     use clap::{Parser, Subcommand};
-    use std::num::ParseIntError;
-    use users::{get_current_groupname, get_current_username};
+    use std::{error::Error, fmt, num::ParseIntError};
+    use users::get_current_username;
 
     #[derive(Parser)]
     #[command(author, version, about, long_about = None)]
@@ -74,7 +72,7 @@ mod cli {
             #[arg(short, long)]
             filesystem: String,
         },
-        /// Clean up workspaces which have been expired for too long
+        /// Clean up workspaces which not been extended in a while
         Clean {},
     }
 
@@ -214,7 +212,7 @@ fn list() -> Result<(), Box<dyn Error>> {
         if Local::now() > workspace.expiration_time {
             print!(
                 "\tdeleted in {:>2}d",
-                (workspace.expiration_time + Duration::days(30) - Local::now()).num_days()
+                (workspace.expiration_time + Duration::days(30) - Local::now()).num_days() //TODO
             );
         } else {
             print!(
@@ -316,6 +314,7 @@ fn clean() -> Result<(), Box<dyn Error>> {
         let expiration_time: DateTime<Local> = row.get(3).unwrap();
 
         if expiration_time < Local::now() - Duration::days(30) {
+            //TODO
             let status = Command::new("zfs")
                 .args(["destroy", &format!("{}/{}/{}", filesystem, user, name)])
                 .status()
