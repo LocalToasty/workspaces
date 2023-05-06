@@ -26,35 +26,31 @@ mod cli {
         /// Create a new workspace
         Create {
             /// Name of the workspace
-            #[arg(short, long)]
+            #[arg(short, long, value_parser = parse_pathsafe)]
             name: String,
 
             /// Filesystem of the workspace
-            #[arg(short, long)]
+            #[arg(short, long, value_parser = parse_pathsafe)]
             filesystem: String,
 
             /// Duration in days to extend the workspace to
-            #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))})]
+            #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))}, value_parser = parse_pathsafe)]
             duration: Duration,
 
             /// User the workspace belongs to
-            #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string())]
+            #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string(), value_parser = parse_pathsafe)]
             user: String,
-
-            /// Group the workspace belongs to
-            #[arg(short, long, default_value_t = get_current_groupname().unwrap().to_string_lossy().to_string())]
-            group: String,
         },
         /// List workspaces
         List {},
-        /// Extend the expiry date of a workspace
+        /// Postpone the expiry date of a workspace
         Extend {
             /// Name of the workspace
-            #[arg(short, long)]
+            #[arg(short, long, value_parser = parse_pathsafe)]
             name: String,
 
             /// User the workspace belongs to
-            #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string())]
+            #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string(), value_parser = parse_pathsafe)]
             user: String,
 
             /// Filesystem of the workspace
@@ -68,10 +64,10 @@ mod cli {
         /// Expire a workspace
         Expire {
             /// Name of the workspace
-            #[arg(short, long)]
+            #[arg(short, long, value_parser = parse_pathsafe)]
             name: String,
             /// User the workspace belongs to
-            #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string())]
+            #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string(), value_parser = parse_pathsafe)]
             user: String,
 
             /// Filesystem of the workspace
@@ -80,6 +76,34 @@ mod cli {
         },
         /// Clean up workspaces which have been expired for too long
         Clean {},
+    }
+
+    #[derive(Debug)]
+    struct NotPathsafeError {
+        str: String,
+    }
+    impl fmt::Display for NotPathsafeError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(
+                f,
+                "`{}` must contain only the characters [A-Za-z0-9_-]",
+                self.str
+            )
+        }
+    }
+    impl Error for NotPathsafeError {}
+
+    fn parse_pathsafe(ident: &str) -> Result<String, NotPathsafeError> {
+        if ident
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            Ok(ident.to_string())
+        } else {
+            Err(NotPathsafeError {
+                str: ident.to_string(),
+            })
+        }
     }
 }
 
