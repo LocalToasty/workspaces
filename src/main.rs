@@ -1,10 +1,11 @@
 use chrono::{DateTime, Duration, Local};
 use clap::Parser;
 use rusqlite::Connection;
-use std::{collections::HashMap, process::Command};
-use users::{get_current_username, get_effective_uid};
+use std::{collections::HashMap, fs, process::Command};
+use users::{get_current_uid, get_current_username};
 
-const DB_PATH: &str = "workspaces.db";
+const DB_PATH: &str = "/usr/local/share/workspaces.db";
+const CONFIG_PATH: &str = "/usr/local/etc/workspaces.toml";
 
 mod cli {
     use chrono::Duration;
@@ -27,37 +28,37 @@ mod cli {
             #[arg(short, long, value_parser = parse_pathsafe)]
             name: String,
 
-            /// Filesystem of the workspace
-            #[arg(short, long, value_parser = parse_pathsafe)]
-            filesystem: String,
-
             /// Duration in days to extend the workspace to
-            #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))}, value_parser = parse_pathsafe)]
+            #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))})]
             duration: Duration,
 
             /// User the workspace belongs to
             #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string(), value_parser = parse_pathsafe)]
             user: String,
+
+            /// Filesystem to create the workspace in
+            #[arg(short, long = "filesystem")]
+            filesystem_name: String,
         },
         /// List workspaces
-        List {},
+        List,
         /// Postpone the expiry date of a workspace
         Extend {
             /// Name of the workspace
             #[arg(short, long, value_parser = parse_pathsafe)]
             name: String,
 
+            /// Duration in days to extend the workspace to
+            #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))})]
+            duration: Duration,
+
             /// User the workspace belongs to
             #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string(), value_parser = parse_pathsafe)]
             user: String,
 
             /// Filesystem of the workspace
-            #[arg(short, long)]
-            filesystem: String,
-
-            /// Duration in days to extend the workspace to
-            #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))})]
-            duration: Duration,
+            #[arg(short, long = "filesystem")]
+            filesystem_name: String,
         },
         /// Expire a workspace
         Expire {
@@ -69,11 +70,13 @@ mod cli {
             user: String,
 
             /// Filesystem of the workspace
-            #[arg(short, long)]
-            filesystem: String,
+            #[arg(short, long = "filesystem")]
+            filesystem_name: String,
         },
+        /// List all existing filesystems
+        Filesystems,
         /// Clean up workspaces which not been extended in a while
-        Clean {},
+        Clean,
     }
 
     #[derive(Debug)]
@@ -105,9 +108,47 @@ mod cli {
     }
 }
 
-fn create(conn: &mut Connection, filesystem: &str, user: &str, name: &str, duration: &Duration) {
+mod config {
+    use chrono::Duration;
+    use serde::{Deserialize, Deserializer};
+    use std::collections::HashMap;
+
+    #[derive(Debug, Deserialize)]
+    pub struct Config {
+        pub filesystems: HashMap<String, Filesystem>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct Filesystem {
+        /// ZFS filesystem / volume which will act as the root for the datasets
+        pub root: String,
+        /// Maximum number of days a workspace may exist
+        #[serde(deserialize_with = "from_days")]
+        pub max_duration: Duration,
+        /// Days after which an expired dataset will be removed
+        #[serde(deserialize_with = "from_days")]
+        pub expired_retention: Duration,
+    }
+
+    fn from_days<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let days: i64 = Deserialize::deserialize(deserializer)?;
+        Ok(Duration::days(i64::from(days)))
+    }
+}
+
+fn create(
+    conn: &mut Connection,
+    filesystem_name: &str,
+    filesystem: &config::Filesystem,
+    user: &str,
+    name: &str,
+    duration: &Duration,
+) {
     assert!(
-        get_current_username().unwrap() == user || get_effective_uid() == 0,
+        get_current_username().unwrap() == user || get_current_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
@@ -116,13 +157,17 @@ fn create(conn: &mut Connection, filesystem: &str, user: &str, name: &str, durat
         .execute(
             "INSERT INTO workspaces (filesystem, user, name, expiration_time)
             VALUES (?1, ?2, ?3, ?4)",
-            (filesystem, user, name, Local::now() + *duration),
+            (filesystem_name, user, name, Local::now() + *duration),
         )
         .unwrap();
 
     // create dataset
     let status = Command::new("zfs")
-        .args(["create", "-p", &format!("{}/{}/{}", filesystem, user, name)])
+        .args([
+            "create",
+            "-p",
+            &format!("{}/{}/{}", filesystem.root, user, name),
+        ])
         .status()
         .unwrap();
     assert!(status.success(), "failed to create dataset property");
@@ -132,7 +177,7 @@ fn create(conn: &mut Connection, filesystem: &str, user: &str, name: &str, durat
         .args([
             "get",
             "mountpoint",
-            &format!("{}/{}/{}", filesystem, user, name),
+            &format!("{}/{}/{}", filesystem.root, user, name),
         ])
         .output()
         .unwrap();
@@ -164,20 +209,20 @@ fn create(conn: &mut Connection, filesystem: &str, user: &str, name: &str, durat
 
 #[derive(Debug)]
 struct WorkspacesRow {
-    filesystem: String,
+    filesystem_name: String,
     user: String,
     name: String,
     expiration_time: DateTime<Local>,
 }
 
-fn list(conn: &Connection) {
+fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
     let mut statement = conn
         .prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")
         .unwrap();
     let workspace_iter = statement
         .query_map([], |row| {
             Ok(WorkspacesRow {
-                filesystem: row.get(0)?,
+                filesystem_name: row.get(0)?,
                 user: row.get(1)?,
                 name: row.get(2)?,
                 expiration_time: row.get(3)?,
@@ -197,7 +242,7 @@ fn list(conn: &Connection) {
                 "mountpoint,logicalreferenced",
                 &format!(
                     "{}/{}/{}",
-                    workspace.filesystem, workspace.user, workspace.name
+                    workspace.filesystem_name, workspace.user, workspace.name
                 ),
             ])
             .output()
@@ -209,13 +254,16 @@ fn list(conn: &Connection) {
 
         print!(
             "{:<15}\t{:<15}\t{:<15}",
-            workspace.name, workspace.user, workspace.filesystem
+            workspace.name, workspace.user, workspace.filesystem_name
         );
 
         if Local::now() > workspace.expiration_time {
             print!(
                 "\tdeleted in {:>2}d",
-                (workspace.expiration_time + Duration::days(30) - Local::now()).num_days() //TODO
+                (workspace.expiration_time
+                    + filesystems[&workspace.filesystem_name].expired_retention
+                    - Local::now())
+                .num_days()
             );
         } else {
             print!(
@@ -238,10 +286,21 @@ fn list(conn: &Connection) {
     }
 }
 
-fn extend(conn: &Connection, filesystem: &str, user: &str, name: &str, duration: &Duration) {
+fn extend(
+    conn: &Connection,
+    filesystem: &config::Filesystem,
+    user: &str,
+    name: &str,
+    duration: &Duration,
+) {
     assert!(
-        get_current_username().unwrap() == user || get_effective_uid() == 0,
+        get_current_username().unwrap() == user || get_current_uid() == 0,
         "you are not allowed to execute this operation"
+    );
+    assert!(
+        duration <= &filesystem.max_duration,
+        "duration has to be shorter than {}",
+        filesystem.max_duration
     );
 
     let rows_updated = conn
@@ -251,7 +310,7 @@ fn extend(conn: &Connection, filesystem: &str, user: &str, name: &str, duration:
             WHERE filesystem = ?2
                 AND user = ?3
                 AND name = ?4",
-            (Local::now() + *duration, filesystem, user, name),
+            (Local::now() + *duration, &filesystem.root, user, name),
         )
         .unwrap();
     assert_eq!(rows_updated, 1);
@@ -260,16 +319,22 @@ fn extend(conn: &Connection, filesystem: &str, user: &str, name: &str, duration:
         .args([
             "set",
             "readonly=off",
-            &format!("{}/{}/{}", filesystem, user, name),
+            &format!("{}/{}/{}", filesystem.root, user, name),
         ])
         .status()
         .unwrap();
     assert!(status.success(), "failed to update readonly property");
 }
 
-fn expire(conn: &Connection, filesystem: &str, user: &str, name: &str) {
+fn expire(
+    conn: &Connection,
+    filesystem_name: &str,
+    filesystem: &config::Filesystem,
+    user: &str,
+    name: &str,
+) {
     assert!(
-        get_current_username().unwrap() == user || get_effective_uid() == 0,
+        get_current_username().unwrap() == user || get_current_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
@@ -280,23 +345,29 @@ fn expire(conn: &Connection, filesystem: &str, user: &str, name: &str) {
             WHERE filesystem = ?2
                 AND user = ?3
                 AND name = ?4",
-            (Local::now(), filesystem, user, name),
+            (Local::now(), filesystem_name, user, name),
         )
         .unwrap();
-    assert_eq!(rows_updated, 1);
+    assert!(
+        rows_updated == 1,
+        "could not find a matching filesystem/user/name combination: {}/{}/{}",
+        filesystem_name,
+        user,
+        name
+    );
 
     let status = Command::new("zfs")
         .args([
             "set",
             "readonly=on",
-            &format!("{}/{}/{}", filesystem, user, name),
+            &format!("{}/{}/{}", filesystem.root, user, name),
         ])
         .status()
         .unwrap();
     assert!(status.success(), "failed to update readonly property");
 }
 
-fn clean(conn: &mut Connection) {
+fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem>) {
     let transaction = conn.transaction().unwrap();
     {
         let mut statement = transaction
@@ -308,15 +379,18 @@ fn clean(conn: &mut Connection) {
             .unwrap();
         let mut rows = statement.query([Local::now()]).unwrap();
         while let Some(row) = rows.next().unwrap() {
-            let filesystem: String = row.get(0).unwrap();
+            let filesystem_name: String = row.get(0).unwrap();
             let user: String = row.get(1).unwrap();
             let name: String = row.get(2).unwrap();
             let expiration_time: DateTime<Local> = row.get(3).unwrap();
 
-            if expiration_time < Local::now() - Duration::days(30) {
+            let filesystem = &filesystems
+                .get(&filesystem_name)
+                .expect("unknown filesystem name");
+            if expiration_time < Local::now() - filesystem.expired_retention {
                 //TODO
                 let status = Command::new("zfs")
-                    .args(["destroy", &format!("{}/{}/{}", filesystem, user, name)])
+                    .args(["destroy", &format!("{}/{}/{}", filesystem.root, user, name)])
                     .status()
                     .unwrap();
                 assert!(status.success(), "failed to delete dataset");
@@ -326,7 +400,7 @@ fn clean(conn: &mut Connection) {
                             WHERE filesystem = ?1
                                 AND user = ?2
                                 AND name = ?3",
-                        (filesystem, user, name),
+                        (filesystem_name, user, name),
                     )
                     .unwrap();
             } else {
@@ -334,7 +408,7 @@ fn clean(conn: &mut Connection) {
                     .args([
                         "set",
                         "readonly=on",
-                        &format!("{}/{}/{}", filesystem, user, name),
+                        &format!("{}/{}/{}", filesystem.root, user, name),
                     ])
                     .status()
                     .unwrap();
@@ -367,6 +441,9 @@ const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
 const NEWEST_DB_VERSION: usize = UPDATE_DB.len();
 
 fn main() {
+    let toml_str = fs::read_to_string(CONFIG_PATH).expect("could not find configuration file");
+    let config: config::Config = toml::from_str(&toml_str).unwrap();
+
     let mut conn = Connection::open(DB_PATH).unwrap();
     let db_version: usize = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
@@ -380,23 +457,49 @@ fn main() {
     let args = cli::Args::parse();
     match args.command {
         cli::Command::Create {
-            filesystem,
+            filesystem_name,
             name,
             duration,
             user,
-        } => create(&mut conn, &filesystem, &user, &name, &duration),
-        cli::Command::List {} => list(&conn),
+        } => create(
+            &mut conn,
+            &filesystem_name,
+            &config
+                .filesystems
+                .get(&filesystem_name)
+                .expect("unknown filesystem name"),
+            &user,
+            &name,
+            &duration,
+        ),
+        cli::Command::List => list(&conn, &config.filesystems),
         cli::Command::Extend {
-            filesystem,
+            filesystem_name: filesystem,
             name,
             user,
             duration,
-        } => extend(&mut conn, &filesystem, &user, &name, &duration),
+        } => extend(
+            &mut conn,
+            &config.filesystems[&filesystem],
+            &user,
+            &name,
+            &duration,
+        ),
         cli::Command::Expire {
-            filesystem,
+            filesystem_name,
             name,
             user,
-        } => expire(&mut conn, &filesystem, &user, &name),
-        cli::Command::Clean {} => clean(&mut conn),
+        } => expire(
+            &mut conn,
+            &filesystem_name,
+            &config
+                .filesystems
+                .get(&filesystem_name)
+                .expect("unknown filesystem name"),
+            &user,
+            &name,
+        ),
+        cli::Command::Filesystems => todo!(), //filesystems(),
+        cli::Command::Clean => clean(&mut conn, &config.filesystems),
     }
 }
