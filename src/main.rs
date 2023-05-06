@@ -319,7 +319,36 @@ fn clean() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
+    // Creates initial database
+    conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+    let transaction = conn.transaction().unwrap();
+    transaction
+        .execute(
+            "CREATE TABLE workspaces (
+            filesystem      TEXT     NOT NULL,
+            user            TEXT     NOT NULL,
+            name            TEXT     NOT NULL,
+            expiration_time DATETIME NOT NULL,
+            UNIQUE(filesystem, user, name)
+        )",
+            (),
+        )
+        .unwrap();
+    transaction.pragma_update(None, "user_version", 1).unwrap();
+    transaction.commit().unwrap();
+}];
+const NEWEST_DB_VERSION: usize = UPDATE_DB.len();
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut conn = Connection::open(DB_PATH)?;
+    let db_version: usize = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    assert!(
+        db_version <= NEWEST_DB_VERSION,
+        "database seems to be from a more current version of workspaces"
+    );
+    UPDATE_DB[db_version..].iter().for_each(|f| f(&mut conn));
+
     let args = cli::Args::parse();
     match args.command {
         cli::Command::Create {
