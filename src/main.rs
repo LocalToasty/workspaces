@@ -109,7 +109,6 @@ fn create(
     filesystem: &str,
     user: &str,
     name: &str,
-    group: &str,
     duration: &Duration,
 ) -> Result<(), Box<dyn Error>> {
     assert!(
@@ -120,9 +119,9 @@ fn create(
     let mut conn = Connection::open(DB_PATH)?;
     let transaction = conn.transaction()?;
     transaction.execute(
-        "INSERT INTO workspaces (filesystem, user, name, \"group\", expiration_time)
-            VALUES (?1, ?2, ?3, ?4, ?5)",
-        (filesystem, user, name, group, Local::now() + *duration),
+        "INSERT INTO workspaces (filesystem, user, name, expiration_time)
+            VALUES (?1, ?2, ?3, ?4)",
+        (filesystem, user, name, Local::now() + *duration),
     )?;
 
     // create dataset
@@ -153,9 +152,9 @@ fn create(
     assert!(status.success(), "failed to set rights on dataset");
 
     let status = Command::new("chown")
-        .args([&format!("{}:{}", user, group), mountpoint])
+        .args([&format!("{}:{}", user, user), mountpoint])
         .status()?;
-    assert!(status.success(), "failed to change owner/group on dataset");
+    assert!(status.success(), "failed to change owner on dataset");
     transaction.commit()?;
 
     println!("Created workspace at {}", mountpoint);
@@ -379,8 +378,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             name,
             duration,
             user,
-            group,
-        } => create(&filesystem, &user, &name, &group, &duration),
+        } => create(&filesystem, &user, &name, &duration),
         cli::Command::List {} => list(),
         cli::Command::Extend {
             filesystem,
