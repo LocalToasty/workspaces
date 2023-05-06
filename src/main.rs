@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Local};
 use clap::Parser;
 use rusqlite::Connection;
-use std::{collections::HashMap, fs, process::Command};
+use std::{collections::HashMap, fs, io, process::Command};
 use users::{get_current_uid, get_current_username};
 
 const DB_PATH: &str = "/usr/local/share/workspaces.db";
@@ -173,38 +173,44 @@ fn create(
     assert!(status.success(), "failed to create dataset property");
 
     // get mountpoint
-    let dataset_info = Command::new("zfs")
-        .args([
-            "get",
-            "mountpoint",
-            &format!("{}/{}/{}", filesystem.root, user, name),
-        ])
-        .output()
-        .unwrap();
-    assert!(dataset_info.status.success());
-    let info = String::from_utf8(dataset_info.stdout).unwrap();
-    let mountpoint = info
-        .lines()
-        .nth(1)
-        .unwrap()
-        .split_whitespace()
-        .nth(2)
-        .unwrap();
+    let mountpoint = zfs_get(
+        "mountpoint",
+        &format!("{}/{}/{}", filesystem.root, user, name),
+    )
+    .unwrap();
 
     let status = Command::new("chmod")
-        .args(["750", mountpoint])
+        .args(["750", &mountpoint])
         .status()
         .unwrap();
     assert!(status.success(), "failed to set rights on dataset");
 
     let status = Command::new("chown")
-        .args([&format!("{}:{}", user, user), mountpoint])
+        .args([&format!("{}:{}", user, user), &mountpoint])
         .status()
         .unwrap();
     assert!(status.success(), "failed to change owner on dataset");
     transaction.commit().unwrap();
 
     println!("Created workspace at {}", mountpoint);
+}
+
+fn zfs_get(attribute: &str, volume: &str) -> io::Result<String> {
+    //TODO remove unwraps
+    let output = Command::new("zfs")
+        .args(["get", attribute, volume])
+        .output()?;
+    assert!(output.status.success());
+    let info_line = String::from_utf8(output.stdout).unwrap();
+    let value = info_line
+        .lines()
+        .nth(1)
+        .unwrap()
+        .split_whitespace()
+        .nth(2)
+        .unwrap()
+        .to_string();
+    Ok(value)
 }
 
 #[derive(Debug)]
@@ -367,6 +373,19 @@ fn expire(
     assert!(status.success(), "failed to update readonly property");
 }
 
+fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
+    println!("{:<15}\t{:<7}\t{:<16}", "FILESYSTEM", "FREE", "DURATION");
+    filesystems.iter().for_each(|(name, info)| {
+        let available = zfs_get("available", name).unwrap();
+        println!(
+            "{:<15}\t{:>6}\t{:>7}d",
+            name,
+            available,
+            info.max_duration.num_days()
+        );
+    });
+}
+
 fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem>) {
     let transaction = conn.transaction().unwrap();
     {
@@ -388,7 +407,6 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                 .get(&filesystem_name)
                 .expect("unknown filesystem name");
             if expiration_time < Local::now() - filesystem.expired_retention {
-                //TODO
                 let status = Command::new("zfs")
                     .args(["destroy", &format!("{}/{}/{}", filesystem.root, user, name)])
                     .status()
@@ -499,7 +517,7 @@ fn main() {
             &user,
             &name,
         ),
-        cli::Command::Filesystems => todo!(), //filesystems(),
+        cli::Command::Filesystems => filesystems(&config.filesystems),
         cli::Command::Clean => clean(&mut conn, &config.filesystems),
     }
 }
