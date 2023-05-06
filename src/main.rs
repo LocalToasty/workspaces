@@ -105,13 +105,12 @@ mod cli {
     }
 }
 
-fn create(filesystem: &str, user: &str, name: &str, duration: &Duration) {
+fn create(conn: &mut Connection, filesystem: &str, user: &str, name: &str, duration: &Duration) {
     assert!(
         get_current_username().unwrap() == user || get_effective_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
-    let mut conn = Connection::open(DB_PATH).unwrap();
     let transaction = conn.transaction().unwrap();
     transaction
         .execute(
@@ -171,8 +170,7 @@ struct WorkspacesRow {
     expiration_time: DateTime<Local>,
 }
 
-fn list() {
-    let conn = Connection::open(DB_PATH).unwrap();
+fn list(conn: &Connection) {
     let mut statement = conn
         .prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")
         .unwrap();
@@ -240,13 +238,12 @@ fn list() {
     }
 }
 
-fn extend(filesystem: &str, user: &str, name: &str, duration: &Duration) {
+fn extend(conn: &Connection, filesystem: &str, user: &str, name: &str, duration: &Duration) {
     assert!(
         get_current_username().unwrap() == user || get_effective_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(DB_PATH).unwrap();
     let rows_updated = conn
         .execute(
             "UPDATE workspaces
@@ -270,13 +267,12 @@ fn extend(filesystem: &str, user: &str, name: &str, duration: &Duration) {
     assert!(status.success(), "failed to update readonly property");
 }
 
-fn expire(filesystem: &str, user: &str, name: &str) {
+fn expire(conn: &Connection, filesystem: &str, user: &str, name: &str) {
     assert!(
         get_current_username().unwrap() == user || get_effective_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(DB_PATH).unwrap();
     let rows_updated = conn
         .execute(
             "UPDATE workspaces
@@ -300,49 +296,53 @@ fn expire(filesystem: &str, user: &str, name: &str) {
     assert!(status.success(), "failed to update readonly property");
 }
 
-fn clean() {
-    let conn = Connection::open(DB_PATH).unwrap();
-    let mut statement = conn
-        .prepare(
-            "SELECT filesystem, user, name, expiration_time
-                FROM workspaces
-                WHERE expiration_time < ?1",
-        )
-        .unwrap();
-    let mut rows = statement.query([Local::now()]).unwrap();
-    while let Some(row) = rows.next().unwrap() {
-        let filesystem: String = row.get(0).unwrap();
-        let user: String = row.get(1).unwrap();
-        let name: String = row.get(2).unwrap();
-        let expiration_time: DateTime<Local> = row.get(3).unwrap();
-
-        if expiration_time < Local::now() - Duration::days(30) {
-            //TODO
-            let status = Command::new("zfs")
-                .args(["destroy", &format!("{}/{}/{}", filesystem, user, name)])
-                .status()
-                .unwrap();
-            assert!(status.success(), "failed to delete dataset");
-            conn.execute(
-                "DELETE FROM workspaces
-                    WHERE filesystem = ?1
-                        AND user = ?2
-                        AND name = ?3",
-                (filesystem, user, name),
+fn clean(conn: &mut Connection) {
+    let transaction = conn.transaction().unwrap();
+    {
+        let mut statement = transaction
+            .prepare(
+                "SELECT filesystem, user, name, expiration_time
+                    FROM workspaces
+                    WHERE expiration_time < ?1",
             )
             .unwrap();
-        } else {
-            let status = Command::new("zfs")
-                .args([
-                    "set",
-                    "readonly=on",
-                    &format!("{}/{}/{}", filesystem, user, name),
-                ])
-                .status()
-                .unwrap();
-            assert!(status.success(), "failed to update readonly property");
+        let mut rows = statement.query([Local::now()]).unwrap();
+        while let Some(row) = rows.next().unwrap() {
+            let filesystem: String = row.get(0).unwrap();
+            let user: String = row.get(1).unwrap();
+            let name: String = row.get(2).unwrap();
+            let expiration_time: DateTime<Local> = row.get(3).unwrap();
+
+            if expiration_time < Local::now() - Duration::days(30) {
+                //TODO
+                let status = Command::new("zfs")
+                    .args(["destroy", &format!("{}/{}/{}", filesystem, user, name)])
+                    .status()
+                    .unwrap();
+                assert!(status.success(), "failed to delete dataset");
+                transaction
+                    .execute(
+                        "DELETE FROM workspaces
+                            WHERE filesystem = ?1
+                                AND user = ?2
+                                AND name = ?3",
+                        (filesystem, user, name),
+                    )
+                    .unwrap();
+            } else {
+                let status = Command::new("zfs")
+                    .args([
+                        "set",
+                        "readonly=on",
+                        &format!("{}/{}/{}", filesystem, user, name),
+                    ])
+                    .status()
+                    .unwrap();
+                assert!(status.success(), "failed to update readonly property");
+            }
         }
     }
+    transaction.commit().unwrap();
 }
 
 const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
@@ -384,19 +384,19 @@ fn main() {
             name,
             duration,
             user,
-        } => create(&filesystem, &user, &name, &duration),
-        cli::Command::List {} => list(),
+        } => create(&mut conn, &filesystem, &user, &name, &duration),
+        cli::Command::List {} => list(&conn),
         cli::Command::Extend {
             filesystem,
             name,
             user,
             duration,
-        } => extend(&filesystem, &user, &name, &duration),
+        } => extend(&mut conn, &filesystem, &user, &name, &duration),
         cli::Command::Expire {
             filesystem,
             name,
             user,
-        } => expire(&filesystem, &user, &name),
-        cli::Command::Clean {} => clean(),
+        } => expire(&mut conn, &filesystem, &user, &name),
+        cli::Command::Clean {} => clean(&mut conn),
     }
 }
