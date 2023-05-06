@@ -3,7 +3,6 @@ use clap::Parser;
 use rusqlite::{Connection, Result};
 use std::collections::HashMap;
 use std::error::Error;
-use std::path::Path;
 use std::process::Command;
 use users::{get_current_username, get_effective_uid};
 
@@ -96,7 +95,7 @@ fn create(
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(Path::new(DB_PATH))?;
+    let conn = Connection::open(DB_PATH)?;
     conn.execute("BEGIN TRANSACTION", ())?;
     conn.execute(
         "INSERT INTO workspaces (filesystem, user, name, \"group\", expiration_time)
@@ -150,7 +149,7 @@ struct WorkspacesRow {
 }
 
 fn list() -> Result<(), Box<dyn Error>> {
-    let conn = Connection::open(Path::new(DB_PATH))?;
+    let conn = Connection::open(DB_PATH)?;
     let mut statement =
         conn.prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")?;
     let workspace_iter = statement.query_map([], |row| {
@@ -226,7 +225,7 @@ fn extend(
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(Path::new(DB_PATH))?;
+    let conn = Connection::open(DB_PATH)?;
     let rows_updated = conn.execute(
         "UPDATE workspaces
             SET expiration_time = MAX(expiration_time, ?1)
@@ -255,7 +254,7 @@ fn expire(filesystem: &str, user: &str, name: &str) -> Result<(), Box<dyn Error>
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(Path::new(DB_PATH))?;
+    let conn = Connection::open(DB_PATH)?;
     let rows_updated = conn.execute(
         "UPDATE workspaces
             SET expiration_time = ?1
@@ -279,7 +278,7 @@ fn expire(filesystem: &str, user: &str, name: &str) -> Result<(), Box<dyn Error>
 }
 
 fn clean() -> Result<(), Box<dyn Error>> {
-    let conn = Connection::open(Path::new(DB_PATH))?;
+    let conn = Connection::open(DB_PATH)?;
     let mut statement = conn.prepare(
         "SELECT filesystem, user, name, expiration_time
                 FROM workspaces
@@ -294,10 +293,7 @@ fn clean() -> Result<(), Box<dyn Error>> {
 
         if expiration_time < Local::now() - Duration::days(30) {
             let status = Command::new("zfs")
-                .args([
-                    "destroy",
-                    &format!("{}/{}/{}", filesystem, user, name),
-                ])
+                .args(["destroy", &format!("{}/{}/{}", filesystem, user, name)])
                 .status()
                 .unwrap();
             assert!(status.success(), "failed to delete dataset");
