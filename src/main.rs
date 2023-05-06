@@ -72,6 +72,10 @@ mod cli {
             /// Filesystem of the workspace
             #[arg(short, long = "filesystem")]
             filesystem_name: String,
+
+            /// Delete this dataset on next cleanup
+            #[arg(long = "terminally")]
+            delete_on_next_clean: bool,
         },
         /// List all existing filesystems
         Filesystems,
@@ -338,12 +342,20 @@ fn expire(
     filesystem: &config::Filesystem,
     user: &str,
     name: &str,
+    terminally: bool,
 ) {
     assert!(
         get_current_username().unwrap() == user || get_current_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
+    let expiration_time = if terminally {
+        // set the expiration time sufficiently far in the past
+        // for it to get cleaned up soon
+        Local::now() - filesystem.expired_retention
+    } else {
+        Local::now()
+    };
     let rows_updated = conn
         .execute(
             "UPDATE workspaces
@@ -351,7 +363,7 @@ fn expire(
             WHERE filesystem = ?2
                 AND user = ?3
                 AND name = ?4",
-            (Local::now(), filesystem_name, user, name),
+            (expiration_time, filesystem_name, user, name),
         )
         .unwrap();
     assert!(
@@ -507,6 +519,7 @@ fn main() {
             filesystem_name,
             name,
             user,
+            delete_on_next_clean,
         } => expire(
             &mut conn,
             &filesystem_name,
@@ -516,6 +529,7 @@ fn main() {
                 .expect("unknown filesystem name"),
             &user,
             &name,
+            delete_on_next_clean,
         ),
         cli::Command::Filesystems => filesystems(&config.filesystems),
         cli::Command::Clean => clean(&mut conn, &config.filesystems),
