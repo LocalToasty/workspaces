@@ -155,6 +155,11 @@ fn create(
         get_current_username().unwrap() == user || get_current_uid() == 0,
         "you are not allowed to execute this operation"
     );
+    assert!(
+        duration <= &filesystem.max_duration || get_current_uid() == 0,
+        "duration can be at most {} days",
+        filesystem.max_duration.num_days()
+    );
 
     let transaction = conn.transaction().unwrap();
     transaction
@@ -241,7 +246,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         .unwrap();
 
     println!(
-        "{:<16}{:<16}{:<16}{:<16}{:<8}{}",
+        "{:<24}{:<16}{:<16}{:<16}{:<8}{}",
         "NAME", "USER", "FILESYSTEM", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
     );
     for workspace in workspace_iter {
@@ -252,7 +257,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
                 "mountpoint,logicalreferenced",
                 &format!(
                     "{}/{}/{}",
-                    workspace.filesystem_name, workspace.user, workspace.name
+                    &filesystems[&workspace.filesystem_name].root, workspace.user, workspace.name
                 ),
             ])
             .output()
@@ -263,13 +268,17 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         }
 
         print!(
-            "{:<15}\t{:<15}\t{:<15}",
+            "{:<23}\t{:<15}\t{:<15}",
             workspace.name, workspace.user, workspace.filesystem_name
         );
 
-        if Local::now() > workspace.expiration_time {
+        if Local::now()
+            > workspace.expiration_time + filesystems[&workspace.filesystem_name].expired_retention
+        {
+            print!("\tvanishes soon");
+        } else if Local::now() > workspace.expiration_time {
             print!(
-                "\tdeleted in {:>2}d",
+                "\tvanishes in {:>2}d",
                 (workspace.expiration_time
                     + filesystems[&workspace.filesystem_name].expired_retention
                     - Local::now())
@@ -298,6 +307,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
 
 fn extend(
     conn: &Connection,
+    filesystem_name: &str,
     filesystem: &config::Filesystem,
     user: &str,
     name: &str,
@@ -308,9 +318,9 @@ fn extend(
         "you are not allowed to execute this operation"
     );
     assert!(
-        duration <= &filesystem.max_duration,
-        "duration has to be shorter than {}",
-        filesystem.max_duration
+        duration <= &filesystem.max_duration || get_current_uid() == 0,
+        "duration can be at most {} days",
+        filesystem.max_duration.num_days()
     );
 
     let rows_updated = conn
@@ -320,7 +330,7 @@ fn extend(
             WHERE filesystem = ?2
                 AND user = ?3
                 AND name = ?4",
-            (Local::now() + *duration, &filesystem.root, user, name),
+            (Local::now() + *duration, filesystem_name, user, name),
         )
         .unwrap();
     assert_eq!(rows_updated, 1);
@@ -504,13 +514,14 @@ fn main() {
         ),
         cli::Command::List => list(&conn, &config.filesystems),
         cli::Command::Extend {
-            filesystem_name: filesystem,
+            filesystem_name,
             name,
             user,
             duration,
         } => extend(
             &mut conn,
-            &config.filesystems[&filesystem],
+            &filesystem_name,
+            &config.filesystems[&filesystem_name],
             &user,
             &name,
             &duration,
