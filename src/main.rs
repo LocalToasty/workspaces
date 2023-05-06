@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Local};
 use clap::Parser;
-use rusqlite::{Connection, Result};
-use std::{collections::HashMap, error::Error, process::Command};
+use rusqlite::Connection;
+use std::{collections::HashMap, process::Command};
 use users::{get_current_username, get_effective_uid};
 
 const DB_PATH: &str = "workspaces.db";
@@ -105,29 +105,27 @@ mod cli {
     }
 }
 
-fn create(
-    filesystem: &str,
-    user: &str,
-    name: &str,
-    duration: &Duration,
-) -> Result<(), Box<dyn Error>> {
+fn create(filesystem: &str, user: &str, name: &str, duration: &Duration) {
     assert!(
         get_current_username().unwrap() == user || get_effective_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
-    let mut conn = Connection::open(DB_PATH)?;
-    let transaction = conn.transaction()?;
-    transaction.execute(
-        "INSERT INTO workspaces (filesystem, user, name, expiration_time)
+    let mut conn = Connection::open(DB_PATH).unwrap();
+    let transaction = conn.transaction().unwrap();
+    transaction
+        .execute(
+            "INSERT INTO workspaces (filesystem, user, name, expiration_time)
             VALUES (?1, ?2, ?3, ?4)",
-        (filesystem, user, name, Local::now() + *duration),
-    )?;
+            (filesystem, user, name, Local::now() + *duration),
+        )
+        .unwrap();
 
     // create dataset
     let status = Command::new("zfs")
         .args(["create", "-p", &format!("{}/{}/{}", filesystem, user, name)])
-        .status()?;
+        .status()
+        .unwrap();
     assert!(status.success(), "failed to create dataset property");
 
     // get mountpoint
@@ -137,9 +135,10 @@ fn create(
             "mountpoint",
             &format!("{}/{}/{}", filesystem, user, name),
         ])
-        .output()?;
+        .output()
+        .unwrap();
     assert!(dataset_info.status.success());
-    let info = String::from_utf8(dataset_info.stdout)?;
+    let info = String::from_utf8(dataset_info.stdout).unwrap();
     let mountpoint = info
         .lines()
         .nth(1)
@@ -148,17 +147,20 @@ fn create(
         .nth(2)
         .unwrap();
 
-    let status = Command::new("chmod").args(["750", mountpoint]).status()?;
+    let status = Command::new("chmod")
+        .args(["750", mountpoint])
+        .status()
+        .unwrap();
     assert!(status.success(), "failed to set rights on dataset");
 
     let status = Command::new("chown")
         .args([&format!("{}:{}", user, user), mountpoint])
-        .status()?;
+        .status()
+        .unwrap();
     assert!(status.success(), "failed to change owner on dataset");
-    transaction.commit()?;
+    transaction.commit().unwrap();
 
     println!("Created workspace at {}", mountpoint);
-    Ok(())
 }
 
 #[derive(Debug)]
@@ -169,25 +171,28 @@ struct WorkspacesRow {
     expiration_time: DateTime<Local>,
 }
 
-fn list() -> Result<(), Box<dyn Error>> {
-    let conn = Connection::open(DB_PATH)?;
-    let mut statement =
-        conn.prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")?;
-    let workspace_iter = statement.query_map([], |row| {
-        Ok(WorkspacesRow {
-            filesystem: row.get(0)?,
-            user: row.get(1)?,
-            name: row.get(2)?,
-            expiration_time: row.get(3)?,
+fn list() {
+    let conn = Connection::open(DB_PATH).unwrap();
+    let mut statement = conn
+        .prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")
+        .unwrap();
+    let workspace_iter = statement
+        .query_map([], |row| {
+            Ok(WorkspacesRow {
+                filesystem: row.get(0)?,
+                user: row.get(1)?,
+                name: row.get(2)?,
+                expiration_time: row.get(3)?,
+            })
         })
-    })?;
+        .unwrap();
 
     println!(
         "{:<16}{:<16}{:<16}{:<16}{:<8}{}",
         "NAME", "USER", "FILESYSTEM", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
     );
     for workspace in workspace_iter {
-        let workspace = workspace?;
+        let workspace = workspace.unwrap();
         let dataset_info = Command::new("zfs")
             .args([
                 "get",
@@ -197,7 +202,8 @@ fn list() -> Result<(), Box<dyn Error>> {
                     workspace.filesystem, workspace.user, workspace.name
                 ),
             ])
-            .output()?;
+            .output()
+            .unwrap();
 
         if !dataset_info.status.success() {
             continue;
@@ -220,7 +226,7 @@ fn list() -> Result<(), Box<dyn Error>> {
             );
         }
 
-        let info = String::from_utf8(dataset_info.stdout)?;
+        let info = String::from_utf8(dataset_info.stdout).unwrap();
         let info = info
             .lines()
             .skip(1)
@@ -232,29 +238,25 @@ fn list() -> Result<(), Box<dyn Error>> {
 
         println!("\t{:>6}\t{}", info["logicalreferenced"], info["mountpoint"]);
     }
-    Ok(())
 }
 
-fn extend(
-    filesystem: &str,
-    user: &str,
-    name: &str,
-    duration: &Duration,
-) -> Result<(), Box<dyn Error>> {
+fn extend(filesystem: &str, user: &str, name: &str, duration: &Duration) {
     assert!(
         get_current_username().unwrap() == user || get_effective_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(DB_PATH)?;
-    let rows_updated = conn.execute(
-        "UPDATE workspaces
+    let conn = Connection::open(DB_PATH).unwrap();
+    let rows_updated = conn
+        .execute(
+            "UPDATE workspaces
             SET expiration_time = MAX(expiration_time, ?1)
             WHERE filesystem = ?2
                 AND user = ?3
                 AND name = ?4",
-        (Local::now() + *duration, filesystem, user, name),
-    )?;
+            (Local::now() + *duration, filesystem, user, name),
+        )
+        .unwrap();
     assert_eq!(rows_updated, 1);
 
     let status = Command::new("zfs")
@@ -263,27 +265,28 @@ fn extend(
             "readonly=off",
             &format!("{}/{}/{}", filesystem, user, name),
         ])
-        .status()?;
+        .status()
+        .unwrap();
     assert!(status.success(), "failed to update readonly property");
-
-    Ok(())
 }
 
-fn expire(filesystem: &str, user: &str, name: &str) -> Result<(), Box<dyn Error>> {
+fn expire(filesystem: &str, user: &str, name: &str) {
     assert!(
         get_current_username().unwrap() == user || get_effective_uid() == 0,
         "you are not allowed to execute this operation"
     );
 
-    let conn = Connection::open(DB_PATH)?;
-    let rows_updated = conn.execute(
-        "UPDATE workspaces
+    let conn = Connection::open(DB_PATH).unwrap();
+    let rows_updated = conn
+        .execute(
+            "UPDATE workspaces
             SET expiration_time = ?1
             WHERE filesystem = ?2
                 AND user = ?3
                 AND name = ?4",
-        (Local::now(), filesystem, user, name),
-    )?;
+            (Local::now(), filesystem, user, name),
+        )
+        .unwrap();
     assert_eq!(rows_updated, 1);
 
     let status = Command::new("zfs")
@@ -292,21 +295,22 @@ fn expire(filesystem: &str, user: &str, name: &str) -> Result<(), Box<dyn Error>
             "readonly=on",
             &format!("{}/{}/{}", filesystem, user, name),
         ])
-        .status()?;
+        .status()
+        .unwrap();
     assert!(status.success(), "failed to update readonly property");
-
-    Ok(())
 }
 
-fn clean() -> Result<(), Box<dyn Error>> {
-    let conn = Connection::open(DB_PATH)?;
-    let mut statement = conn.prepare(
-        "SELECT filesystem, user, name, expiration_time
+fn clean() {
+    let conn = Connection::open(DB_PATH).unwrap();
+    let mut statement = conn
+        .prepare(
+            "SELECT filesystem, user, name, expiration_time
                 FROM workspaces
                 WHERE expiration_time < ?1",
-    )?;
-    let mut rows = statement.query([Local::now()])?;
-    while let Some(row) = rows.next()? {
+        )
+        .unwrap();
+    let mut rows = statement.query([Local::now()]).unwrap();
+    while let Some(row) = rows.next().unwrap() {
         let filesystem: String = row.get(0).unwrap();
         let user: String = row.get(1).unwrap();
         let name: String = row.get(2).unwrap();
@@ -325,7 +329,8 @@ fn clean() -> Result<(), Box<dyn Error>> {
                         AND user = ?2
                         AND name = ?3",
                 (filesystem, user, name),
-            )?;
+            )
+            .unwrap();
         } else {
             let status = Command::new("zfs")
                 .args([
@@ -338,7 +343,6 @@ fn clean() -> Result<(), Box<dyn Error>> {
             assert!(status.success(), "failed to update readonly property");
         }
     }
-    Ok(())
 }
 
 const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
@@ -362,9 +366,11 @@ const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
 }];
 const NEWEST_DB_VERSION: usize = UPDATE_DB.len();
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut conn = Connection::open(DB_PATH)?;
-    let db_version: usize = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+fn main() {
+    let mut conn = Connection::open(DB_PATH).unwrap();
+    let db_version: usize = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
     assert!(
         db_version <= NEWEST_DB_VERSION,
         "database seems to be from a more current version of workspaces"
