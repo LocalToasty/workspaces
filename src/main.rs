@@ -155,6 +155,7 @@ mod exit_codes {
     pub const INSUFFICIENT_PRIVILEGES: i32 = 1;
     pub const FS_DISABLED: i32 = 2;
     pub const TOO_HIGH_DURATION: i32 = 3;
+    pub const UNKNOWN_VOLUME: i32 = 4;
 }
 
 fn create(
@@ -382,10 +383,17 @@ fn extend(
             (Local::now() + *duration, filesystem_name, user, name),
         )
         .unwrap();
-    assert_eq!(
-        rows_updated, 1,
-        "could not find a matching workspace in database"
-    );
+    match rows_updated {
+        0 => {
+            eprintln!(
+                "Could not find a matching filesystem={}, user={}, name={}",
+                filesystem_name, user, name
+            );
+            process::exit(exit_codes::UNKNOWN_VOLUME);
+        }
+        1 => {}
+        _ => unreachable!(),
+    };
 
     zfs::set_property(
         &to_volume_string(&filesystem.root, &user, &name),
@@ -425,13 +433,17 @@ fn expire(
             (expiration_time, filesystem_name, user, name),
         )
         .unwrap();
-    assert!(
-        rows_updated == 1,
-        "could not find a matching filesystem, user, name combination: {}, {}, {}",
-        filesystem_name,
-        user,
-        name
-    );
+    match rows_updated {
+        0 => {
+            eprintln!(
+                "Could not find a matching filesystem={}, user={}, name={}",
+                filesystem_name, user, name
+            );
+            process::exit(exit_codes::UNKNOWN_VOLUME);
+        }
+        1 => {}
+        _ => unreachable!(),
+    };
 
     zfs::set_property(
         &to_volume_string(&filesystem.root, &user, &name),
