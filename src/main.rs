@@ -190,22 +190,16 @@ fn create(
         )
         .unwrap();
 
+    let volume = to_volume_string(&filesystem.root, user, name);
+
     // create dataset
     let status = Command::new("zfs")
-        .args([
-            "create",
-            "-p",
-            &format!("{}/{}/{}", filesystem.root, user, name),
-        ])
+        .args(["create", "-p", &volume])
         .status()
         .unwrap();
     assert!(status.success(), "failed to create dataset property");
 
-    let mountpoint = zfs::get_property(
-        &format!("{}/{}/{}", filesystem.root, user, name),
-        "mountpoint",
-    )
-    .unwrap();
+    let mountpoint = zfs::get_property(&volume, "mountpoint").unwrap();
 
     let mut permissions = fs::metadata(&mountpoint).unwrap().permissions();
     permissions.set_mode(0o750);
@@ -219,6 +213,10 @@ fn create(
     transaction.commit().unwrap();
 
     println!("Created workspace at {}", mountpoint);
+}
+
+fn to_volume_string(root: &str, user: &str, name: &str) -> String {
+    format!("{}/{}/{}", root, user, name)
 }
 
 mod zfs {
@@ -290,7 +288,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         .unwrap();
 
     println!(
-        "{:<32}{:<16}{:<16}{:<16}{:<8}{}",
+        "{:<24}{:<16}{:<16}{:<16}{:<8}{}",
         "NAME", "USER", "FILESYSTEM", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
     );
     for workspace in workspace_iter {
@@ -299,9 +297,10 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
             .args([
                 "get",
                 "mountpoint,logicalreferenced",
-                &format!(
-                    "{}/{}/{}",
-                    &filesystems[&workspace.filesystem_name].root, workspace.user, workspace.name
+                &to_volume_string(
+                    &filesystems[&workspace.filesystem_name].root,
+                    &workspace.user,
+                    &workspace.name,
                 ),
             ])
             .output()
@@ -312,7 +311,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         }
 
         print!(
-            "{:<31}\t{:<15}\t{:<15}",
+            "{:<23}\t{:<15}\t{:<15}",
             workspace.name, workspace.user, workspace.filesystem_name
         );
 
@@ -389,7 +388,7 @@ fn extend(
     );
 
     zfs::set_property(
-        &format!("{}/{}/{}", filesystem.root, user, name),
+        &to_volume_string(&filesystem.root, &user, &name),
         "readonly",
         "off",
     )
@@ -428,14 +427,14 @@ fn expire(
         .unwrap();
     assert!(
         rows_updated == 1,
-        "could not find a matching filesystem/user/name combination: {}/{}/{}",
+        "could not find a matching filesystem, user, name combination: {}, {}, {}",
         filesystem_name,
         user,
         name
     );
 
     zfs::set_property(
-        &format!("{}/{}/{}", filesystem.root, user, name),
+        &to_volume_string(&filesystem.root, &user, &name),
         "readonly",
         "on",
     )
@@ -475,9 +474,10 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
             let filesystem = &filesystems
                 .get(&filesystem_name)
                 .expect("unknown filesystem name");
+            let volume = to_volume_string(&filesystem.root, &user, &name);
             if expiration_time < Local::now() - filesystem.expired_retention {
                 let status = Command::new("zfs")
-                    .args(["destroy", &format!("{}/{}/{}", filesystem.root, user, name)])
+                    .args(["destroy", &volume])
                     .status()
                     .unwrap();
                 assert!(status.success(), "failed to delete dataset");
@@ -491,12 +491,7 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                     )
                     .unwrap();
             } else {
-                zfs::set_property(
-                    &format!("{}/{}/{}", filesystem.root, user, name),
-                    "readonly",
-                    "on",
-                )
-                .unwrap();
+                zfs::set_property(&volume, "readonly", "on").unwrap();
             }
         }
     }
