@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    /// Default filesystem to use in CLI
+    pub default_filesystem: Option<String>,
     pub filesystems: HashMap<String, Filesystem>,
 }
 

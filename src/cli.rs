@@ -32,7 +32,7 @@ pub enum Command {
 
         /// Filesystem to create the workspace in
         #[arg(short, long = "filesystem")]
-        filesystem_name: String,
+        filesystem_name: Option<String>,
     },
     /// List workspaces
     List,
@@ -55,7 +55,7 @@ pub enum Command {
 
         /// Filesystem of the workspace
         #[arg(short, long = "filesystem")]
-        filesystem_name: String,
+        filesystem_name: Option<String>,
     },
     /// Expire a workspace
     Expire {
@@ -68,7 +68,7 @@ pub enum Command {
 
         /// Filesystem of the workspace
         #[arg(short, long = "filesystem")]
-        filesystem_name: String,
+        filesystem_name: Option<String>,
 
         /// Delete this dataset on next cleanup
         ///

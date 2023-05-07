@@ -30,6 +30,8 @@ mod exit_codes {
     pub const UNKNOWN_WORKSPACE: i32 = 4;
     /// The user tried to create a workspace that already exists
     pub const WORKSPACE_EXISTS: i32 = 5;
+    /// No filesystem given and no default specified in configuration file
+    pub const NO_FILESYSTEM_SPECIFIED: i32 = 6;
 }
 
 /// Creates a new workspace
@@ -356,11 +358,14 @@ const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
 const NEWEST_DB_VERSION: usize = UPDATE_DB.len();
 
 fn main() {
+    // read config
+    let toml_str = fs::read_to_string(CONFIG_PATH).expect("could not find configuration file");
+    let config: config::Config =
+        toml::from_str(&toml_str).expect("error parsing configuration file");
+
     let args = cli::Args::parse();
 
-    let toml_str = fs::read_to_string(CONFIG_PATH).expect("could not find configuration file");
-    let config: config::Config = toml::from_str(&toml_str).unwrap();
-
+    // make sure database schema is current
     let mut conn = Connection::open(DB_PATH).unwrap();
     let db_version: usize = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
@@ -369,6 +374,7 @@ fn main() {
         db_version <= NEWEST_DB_VERSION,
         "database seems to be from a more current version of workspaces"
     );
+    // iteratively apply necessary database updates
     UPDATE_DB[db_version..].iter().for_each(|f| f(&mut conn));
 
     match args.command {
@@ -377,48 +383,102 @@ fn main() {
             name,
             duration,
             user,
-        } => create(
-            &mut conn,
-            &filesystem_name,
-            &config
-                .filesystems
-                .get(&filesystem_name)
-                .expect("unknown filesystem name"),
-            &user,
-            &name,
-            &duration,
-        ),
+        } => {
+            let filesystem_name = filesystem_or_default_or_exit(
+                &filesystem_name,
+                &config.filesystems,
+                &config.default_filesystem,
+            );
+            create(
+                &mut conn,
+                &filesystem_name,
+                &config
+                    .filesystems
+                    .get(&filesystem_name)
+                    .expect("unknown filesystem name"),
+                &user,
+                &name,
+                &duration,
+            )
+        }
         cli::Command::List => list(&conn, &config.filesystems),
         cli::Command::Extend {
             filesystem_name,
             name,
             user,
             duration,
-        } => extend(
-            &mut conn,
-            &filesystem_name,
-            &config.filesystems[&filesystem_name],
-            &user,
-            &name,
-            &duration,
-        ),
+        } => {
+            let filesystem_name = filesystem_or_default_or_exit(
+                &filesystem_name,
+                &config.filesystems,
+                &config.default_filesystem,
+            );
+            extend(
+                &mut conn,
+                &filesystem_name,
+                &config.filesystems[&filesystem_name],
+                &user,
+                &name,
+                &duration,
+            )
+        }
         cli::Command::Expire {
             filesystem_name,
             name,
             user,
             delete_on_next_clean,
-        } => expire(
-            &mut conn,
-            &filesystem_name,
-            &config
-                .filesystems
-                .get(&filesystem_name)
-                .expect("unknown filesystem name"),
-            &user,
-            &name,
-            delete_on_next_clean,
-        ),
+        } => {
+            let filesystem_name = filesystem_or_default_or_exit(
+                &filesystem_name,
+                &config.filesystems,
+                &config.default_filesystem,
+            );
+            expire(
+                &mut conn,
+                &filesystem_name,
+                &config.filesystems[&filesystem_name],
+                &user,
+                &name,
+                delete_on_next_clean,
+            )
+        }
         cli::Command::Filesystems => filesystems(&config.filesystems),
         cli::Command::Clean => clean(&mut conn, &config.filesystems),
+    }
+}
+
+/// Horrible stateful filesystem name validation function
+///
+/// Returns with this order of preference:
+/// - the given filesystem name if it exists
+/// - the default filesystem, if specified in the config
+/// - the only filesystem if there is only one
+///
+/// Otherwise, it terminates the program
+fn filesystem_or_default_or_exit(
+    filesystem_name: &Option<String>,
+    filesystems: &HashMap<String, config::Filesystem>,
+    default: &Option<String>,
+) -> String {
+    let filesystem_name: String = if let Some(name) = filesystem_name {
+        name.clone()
+    } else if let Some(name) = default {
+        name.clone()
+    } else if filesystems.len() == 1 {
+        filesystems.keys().next().unwrap().clone()
+    } else {
+        eprintln!("Please specify a filesystem with `-f <FILESYSTEM>`");
+        process::exit(exit_codes::NO_FILESYSTEM_SPECIFIED);
+    };
+
+    if filesystems.contains_key(&filesystem_name) {
+        filesystem_name
+    } else {
+        eprint!("Invalid filesystem name. Please use one of the following:");
+        for name in filesystems.keys() {
+            eprint!(" {}", name);
+        }
+        eprintln!();
+        process::exit(exit_codes::UNKNOWN_WORKSPACE);
     }
 }

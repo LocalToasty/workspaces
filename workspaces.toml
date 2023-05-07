@@ -1,6 +1,9 @@
 ## Example /usr/local/etc/workspaces.toml configuration file.
 ## Adapt for own use.
 #
+## Default filesystem to use.
+#default_filesystem = "bulk"
+#
 ## A definition of a filesystem named `bulk`.
 #[filesystems.bulk]
 #
