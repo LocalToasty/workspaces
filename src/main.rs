@@ -118,7 +118,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         .unwrap();
 
     println!(
-        "{:<24}{:<16}{:<16}{:<16}{:<8}{}",
+        "{:<23}\t{:<15}\t{:<15}\t{:<14}\t{:<6}\t{}",
         "NAME", "USER", "FILESYSTEM", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
     );
     for workspace in workspace_iter {
@@ -268,7 +268,10 @@ fn expire(
 }
 
 fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
-    println!("{:<15}\t{:<7}\t{}\t{}", "FILESYSTEM", "FREE", "DURATION", "RETENTION");
+    println!(
+        "{:<15}\t{:<7}\t{}\t{}",
+        "FILESYSTEM", "FREE", "DURATION", "RETENTION"
+    );
     filesystems.iter().for_each(|(name, info)| {
         let available = zfs::get_property(&info.root, "available").unwrap();
         print!("{:<15}\t{:>7}", name, available);
