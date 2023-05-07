@@ -7,6 +7,7 @@ pub struct Config {
     pub filesystems: HashMap<String, Filesystem>,
 }
 
+/// A filesystem workpsaces can be created in
 #[derive(Debug, Deserialize)]
 pub struct Filesystem {
     /// ZFS filesystem / volume which will act as the root for the datasets

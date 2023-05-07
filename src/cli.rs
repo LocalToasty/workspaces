@@ -15,10 +15,14 @@ pub enum Command {
     /// Create a new workspace
     Create {
         /// Name of the workspace
+        ///
+        /// Must entirely consist of the characters [A-Za-z0-9_-].
         #[arg(short, long, value_parser = parse_pathsafe)]
         name: String,
 
         /// Duration in days to extend the workspace to
+        ///
+        /// Must be less or equal to the DURATION given in `workspaces filesystems`.
         #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))})]
         duration: Duration,
 
@@ -32,13 +36,16 @@ pub enum Command {
     },
     /// List workspaces
     List,
-    /// Postpone the expiry date of a workspace
+    /// Postpone the expiry date of an already existing workspace
     Extend {
         /// Name of the workspace
         #[arg(short, long, value_parser = parse_pathsafe)]
         name: String,
 
-        /// Duration in days to extend the workspace to
+        /// Duration in days to extend the workspace until
+        ///
+        /// If this is fewer than the current days until expiry,
+        /// no action will be taken.
         #[arg(short, long, value_parser = |arg: &str| -> Result<Duration, ParseIntError> {Ok(Duration::days(arg.parse()?))})]
         duration: Duration,
 
@@ -64,15 +71,22 @@ pub enum Command {
         filesystem_name: String,
 
         /// Delete this dataset on next cleanup
+        ///
+        /// No deletion will take place until the next time `clean` is called.
+        /// Be aware that this may happen due to another user / cronjob.
         #[arg(long = "terminally")]
         delete_on_next_clean: bool,
     },
     /// List all existing filesystems
     Filesystems,
     /// Clean up workspaces which not been extended in a while
+    ///
+    /// This will delete all workspaces marked as `deleted soon` in `workspaces list`,
+    /// including other users' workspaces.
     Clean,
 }
 
+/// String contains characters which are not [A-Za-z0-9_-]
 #[derive(Debug)]
 struct NotPathsafeError {
     str: String,

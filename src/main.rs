@@ -13,17 +13,26 @@ mod cli;
 mod config;
 mod zfs;
 
+/// Path to store the workspace database in
 const DB_PATH: &str = "/usr/local/share/workspaces/workspaces.db";
+/// Path of the configuration file
 const CONFIG_PATH: &str = "/usr/local/etc/workspaces.toml";
 
 mod exit_codes {
+    /// The user tried executing an action they have no rights to do,
+    /// i.e. expiring another user's workspace
     pub const INSUFFICIENT_PRIVILEGES: i32 = 1;
+    /// The user tried creating / extending a workspace on a disabled filesystem
     pub const FS_DISABLED: i32 = 2;
+    /// The user tried creating / extending a workspace with too long a duration
     pub const TOO_HIGH_DURATION: i32 = 3;
-    pub const UNKNOWN_VOLUME: i32 = 4;
-    pub const WORKSPACE_EXISTS: i32 = 4;
+    /// The workspace specified by a user does not exist
+    pub const UNKNOWN_WORKSPACE: i32 = 4;
+    /// The user tried to create a workspace that already exists
+    pub const WORKSPACE_EXISTS: i32 = 5;
 }
 
+/// Creates a new workspace
 fn create(
     conn: &mut Connection,
     filesystem_name: &str,
@@ -203,7 +212,7 @@ fn extend(
                 "Could not find a matching filesystem={}, user={}, name={}",
                 filesystem_name, user, name
             );
-            process::exit(exit_codes::UNKNOWN_VOLUME);
+            process::exit(exit_codes::UNKNOWN_WORKSPACE);
         }
         1 => {}
         _ => unreachable!(),
@@ -253,7 +262,7 @@ fn expire(
                 "Could not find a matching filesystem={}, user={}, name={}",
                 filesystem_name, user, name
             );
-            process::exit(exit_codes::UNKNOWN_VOLUME);
+            process::exit(exit_codes::UNKNOWN_WORKSPACE);
         }
         1 => {}
         _ => unreachable!(),
@@ -347,6 +356,8 @@ const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
 const NEWEST_DB_VERSION: usize = UPDATE_DB.len();
 
 fn main() {
+    let args = cli::Args::parse();
+
     let toml_str = fs::read_to_string(CONFIG_PATH).expect("could not find configuration file");
     let config: config::Config = toml::from_str(&toml_str).unwrap();
 
@@ -360,7 +371,6 @@ fn main() {
     );
     UPDATE_DB[db_version..].iter().for_each(|f| f(&mut conn));
 
-    let args = cli::Args::parse();
     match args.command {
         cli::Command::Create {
             filesystem_name,
