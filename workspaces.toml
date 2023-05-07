@@ -1,23 +1,25 @@
-## Example /usr/local/etc/workspaces.toml configuration file.
+## Example /usr/local/etc/workspaces.toml configuration file
+##
 ## Adapt for own use.
 #
-## Default filesystem to use.
+## Default filesystem to use if none is specified
 #default_filesystem = "bulk"
 #
-## A definition of a filesystem named `bulk`.
+## A definition of a filesystem named `bulk`
 #[filesystems.bulk]
 #
-## The zpool/[volume] used as a base for the workspaces.
+## The zpool[/volume] used as a base for the workspaces
 #root = "hdd-zpool/ws"
 #
 ## The maximum duration in days until expiry that can be specified when
-## creating or extending datasets.
+## creating or extending datasets
 #max_duration = 90
 #
 ## The number of days after expiration upon which a workspace will be
-## flagged for deletion.
+## flagged for deletion
 #expired_retention = 30
 #
-## Whether the filesystem is disabled. Workspaces cannot be created or
-## extended on disabled filesystems.
+## Whether the filesystem is disabled
+##
+## Workspaces cannot be created or extended on disabled filesystems.
 #disabled = false
