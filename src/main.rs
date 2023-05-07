@@ -265,7 +265,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         .unwrap();
 
     println!(
-        "{:<24}{:<16}{:<16}{:<16}{:<8}{}",
+        "{:<32}{:<16}{:<16}{:<16}{:<8}{}",
         "NAME", "USER", "FILESYSTEM", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
     );
     for workspace in workspace_iter {
@@ -287,17 +287,17 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         }
 
         print!(
-            "{:<23}\t{:<15}\t{:<15}",
+            "{:<31}\t{:<15}\t{:<15}",
             workspace.name, workspace.user, workspace.filesystem_name
         );
 
         if Local::now()
             > workspace.expiration_time + filesystems[&workspace.filesystem_name].expired_retention
         {
-            print!("\tvanishes soon");
+            print!("\tgone soon");
         } else if Local::now() > workspace.expiration_time {
             print!(
-                "\tvanishes in {:>2}d",
+                "\tgone in {:>2}d",
                 (workspace.expiration_time
                     + filesystems[&workspace.filesystem_name].expired_retention
                     - Local::now())
@@ -380,14 +380,14 @@ fn expire(
     filesystem: &config::Filesystem,
     user: &str,
     name: &str,
-    terminally: bool,
+    delete_on_next_clean: bool,
 ) {
     if get_current_username().unwrap() != user && get_current_uid() != 0 {
         eprint!("you are not allowed to execute this operation");
         process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
     }
 
-    let expiration_time = if terminally {
+    let expiration_time = if delete_on_next_clean {
         // set the expiration time sufficiently far in the past
         // for it to get cleaned up soon
         Local::now() - filesystem.expired_retention
