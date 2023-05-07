@@ -151,7 +151,9 @@ mod config {
 }
 
 mod exit_codes {
-    pub const FS_DISABLED: i32 = 1;
+    pub const INSUFFICIENT_PRIVILEGES: i32 = 1;
+    pub const FS_DISABLED: i32 = 2;
+    pub const TOO_HIGH_DURATION: i32 = 3;
 }
 
 fn create(
@@ -162,18 +164,20 @@ fn create(
     name: &str,
     duration: &Duration,
 ) {
-    assert!(
-        get_current_username().unwrap() == user || get_current_uid() == 0,
-        "you are not allowed to execute this operation"
-    );
-    assert!(
-        duration <= &filesystem.max_duration || get_current_uid() == 0,
-        "duration can be at most {} days",
-        filesystem.max_duration.num_days()
-    );
+    if get_current_username().unwrap() != user && get_current_uid() != 0 {
+        eprint!("you are not allowed to execute this operation");
+        process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
+    }
     if filesystem.disabled && get_current_uid() != 0 {
         eprintln!("Filesystem is disabled. Please try another filesystem.");
         process::exit(exit_codes::FS_DISABLED);
+    }
+    if duration > &filesystem.max_duration && get_current_uid() != 0 {
+        eprintln!(
+            "duration can be at most {} days",
+            filesystem.max_duration.num_days()
+        );
+        process::exit(exit_codes::TOO_HIGH_DURATION);
     }
 
     let transaction = conn.transaction().unwrap();
@@ -328,18 +332,20 @@ fn extend(
     name: &str,
     duration: &Duration,
 ) {
-    assert!(
-        get_current_username().unwrap() == user || get_current_uid() == 0,
-        "you are not allowed to execute this operation"
-    );
-    assert!(
-        duration <= &filesystem.max_duration || get_current_uid() == 0,
-        "duration can be at most {} days",
-        filesystem.max_duration.num_days()
-    );
+    if get_current_username().unwrap() != user && get_current_uid() != 0 {
+        eprint!("you are not allowed to execute this operation");
+        process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
+    }
     if filesystem.disabled && get_current_uid() != 0 {
         eprintln!("Filesystem is disabled. Please recreate workspace on another filesystem.");
         process::exit(exit_codes::FS_DISABLED);
+    }
+    if duration > &filesystem.max_duration && get_current_uid() != 0 {
+        eprintln!(
+            "duration can be at most {} days",
+            filesystem.max_duration.num_days()
+        );
+        process::exit(exit_codes::TOO_HIGH_DURATION);
     }
 
     let rows_updated = conn
@@ -352,7 +358,10 @@ fn extend(
             (Local::now() + *duration, filesystem_name, user, name),
         )
         .unwrap();
-    assert_eq!(rows_updated, 1);
+    assert_eq!(
+        rows_updated, 1,
+        "could not find a matching workspace in database"
+    );
 
     let status = Command::new("zfs")
         .args([
@@ -373,10 +382,10 @@ fn expire(
     name: &str,
     terminally: bool,
 ) {
-    assert!(
-        get_current_username().unwrap() == user || get_current_uid() == 0,
-        "you are not allowed to execute this operation"
-    );
+    if get_current_username().unwrap() != user && get_current_uid() != 0 {
+        eprint!("you are not allowed to execute this operation");
+        process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
+    }
 
     let expiration_time = if terminally {
         // set the expiration time sufficiently far in the past
