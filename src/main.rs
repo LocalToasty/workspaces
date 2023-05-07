@@ -143,10 +143,10 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
         if Local::now()
             > workspace.expiration_time + filesystems[&workspace.filesystem_name].expired_retention
         {
-            print!("\tgone soon");
+            print!("\tdeleted   soon");
         } else if Local::now() > workspace.expiration_time {
             print!(
-                "\tgone in {:>2}d",
+                "\tdeleted in {:>2}d",
                 (workspace.expiration_time
                     + filesystems[&workspace.filesystem_name].expired_retention
                     - Local::now())
