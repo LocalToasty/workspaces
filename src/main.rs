@@ -58,12 +58,7 @@ fn create(
 
     let volume = to_volume_string(&filesystem.root, user, name);
 
-    // create dataset
-    let status = Command::new("zfs")
-        .args(["create", "-p", &volume])
-        .status()
-        .unwrap();
-    assert!(status.success(), "failed to create dataset property");
+    zfs::create(&volume).unwrap();
 
     let mountpoint = zfs::get_property(&volume, "mountpoint").unwrap();
 
@@ -293,11 +288,7 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                 .expect("unknown filesystem name");
             let volume = to_volume_string(&filesystem.root, &user, &name);
             if expiration_time < Local::now() - filesystem.expired_retention {
-                let status = Command::new("zfs")
-                    .args(["destroy", &volume])
-                    .status()
-                    .unwrap();
-                assert!(status.success(), "failed to delete dataset");
+                zfs::destroy(&volume).unwrap();
                 transaction
                     .execute(
                         "DELETE FROM workspaces

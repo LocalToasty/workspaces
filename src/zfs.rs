@@ -1,4 +1,3 @@
-
 use std::{
     io,
     process::{self, Command},
@@ -9,6 +8,28 @@ pub enum Error {
     Command(io::Error),
     ZfsStatus(process::ExitStatus),
     AttributeParse,
+}
+
+pub fn create(volume: &str) -> Result<(), Error> {
+    let status = Command::new("zfs")
+        .args(["create", "-p", &volume])
+        .status()
+        .map_err(Error::Command)?;
+    match status.success() {
+        true => Ok(()),
+        false => Err(Error::ZfsStatus(status)),
+    }
+}
+
+pub fn destroy(volume: &str) -> Result<(), Error> {
+    let status = Command::new("zfs")
+        .args(["destroy", &volume])
+        .status()
+        .map_err(Error::Command)?;
+    match status.success() {
+        true => Ok(()),
+        false => Err(Error::ZfsStatus(status)),
+    }
 }
 
 pub fn get_property(volume: &str, property: &str) -> Result<String, Error> {
