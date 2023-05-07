@@ -9,5 +9,7 @@ install: $(BIN)
 	cp $(BIN) /usr/local/bin/
 	chmod u+s /usr/local/bin/workspaces
 	mkdir -p /usr/local/share/workspaces
+	cp workspaces.toml /usr/local/etc/workspaces.example.toml
+	test -f /usr/local/etc/workspaces.toml || cp workspaces.toml /usr/local/etc/
 	cp clean-workspaces.service /etc/systemd/system/
 	cp clean-workspaces.timer /etc/systemd/system/
