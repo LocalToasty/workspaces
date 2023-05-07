@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use std::{collections::HashMap, fs, io, process::Command};
 use users::{get_current_uid, get_current_username};
 
-const DB_PATH: &str = "/usr/local/share/workspaces.db";
+const DB_PATH: &str = "/usr/local/share/workspaces/workspaces.db";
 const CONFIG_PATH: &str = "/usr/local/etc/workspaces.toml";
 
 mod cli {
@@ -461,7 +461,6 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
 
 const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
     // Creates initial database
-    conn.pragma_update(None, "journal_mode", "WAL").unwrap();
     let transaction = conn.transaction().unwrap();
     transaction
         .execute(
