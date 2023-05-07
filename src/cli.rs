@@ -88,10 +88,12 @@ impl fmt::Display for NotPathsafeError {
 }
 impl Error for NotPathsafeError {}
 
+/// Ensures string only contains the characters [A-Za-z0-9_-]
 fn parse_pathsafe(ident: &str) -> Result<String, NotPathsafeError> {
-    if ident
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    if ident.len() > 0
+        && ident
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
     {
         Ok(ident.to_string())
     } else {
