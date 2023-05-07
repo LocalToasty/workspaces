@@ -294,20 +294,15 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
     );
     for workspace in workspace_iter {
         let workspace = workspace.unwrap();
-        let dataset_info = Command::new("zfs")
-            .args([
-                "get",
-                "mountpoint,logicalreferenced",
-                &to_volume_string(
-                    &filesystems[&workspace.filesystem_name].root,
-                    &workspace.user,
-                    &workspace.name,
-                ),
-            ])
-            .output()
-            .unwrap();
-
-        if !dataset_info.status.success() {
+        let volume = to_volume_string(
+            &filesystems[&workspace.filesystem_name].root,
+            &workspace.user,
+            &workspace.name,
+        );
+        let mountpoint = zfs::get_property(&volume, "mountpoint");
+        let referenced = zfs::get_property(&volume, "referenced");
+        if mountpoint.is_err() || referenced.is_err() {
+            eprintln!("Failed to get info for {}", volume);
             continue;
         }
 
@@ -335,17 +330,7 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
             );
         }
 
-        let info = String::from_utf8(dataset_info.stdout).unwrap();
-        let info = info
-            .lines()
-            .skip(1)
-            .map(|line| {
-                let parts = line.split_whitespace().collect::<Vec<_>>();
-                (parts[1], parts[2])
-            })
-            .collect::<HashMap<_, _>>();
-
-        println!("\t{:>6}\t{}", info["logicalreferenced"], info["mountpoint"]);
+        println!("\t{:>6}\t{}", referenced.unwrap(), mountpoint.unwrap());
     }
 }
 
