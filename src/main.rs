@@ -232,7 +232,7 @@ mod zfs {
     #[derive(Debug)]
     pub enum Error {
         Command(io::Error),
-        ZfsStatus(process::Output),
+        ZfsStatus(process::ExitStatus),
         AttributeParse,
     }
 
@@ -242,7 +242,7 @@ mod zfs {
             .output()
             .map_err(Error::Command)?;
         if !output.status.success() {
-            return Err(Error::ZfsStatus(output));
+            return Err(Error::ZfsStatus(output.status));
         }
         let info_line = String::from_utf8(output.stdout).unwrap();
         info_line
@@ -253,6 +253,18 @@ mod zfs {
             .nth(2)
             .ok_or(Error::AttributeParse)
             .map(String::from)
+    }
+
+    pub fn set_property(volume: &str, property: &str, value: &str) -> Result<(), Error> {
+        let status: process::ExitStatus = Command::new("zfs")
+            .args(["set", &format!("{}={}", property, value), volume])
+            .status()
+            .map_err(Error::Command)?;
+
+        match status.success() {
+            true => Ok(()),
+            false => Err(Error::ZfsStatus(status)),
+        }
     }
 }
 
@@ -378,15 +390,12 @@ fn extend(
         "could not find a matching workspace in database"
     );
 
-    let status = Command::new("zfs")
-        .args([
-            "set",
-            "readonly=off",
-            &format!("{}/{}/{}", filesystem.root, user, name),
-        ])
-        .status()
-        .unwrap();
-    assert!(status.success(), "failed to update readonly property");
+    zfs::set_property(
+        &format!("{}/{}/{}", filesystem.root, user, name),
+        "readonly",
+        "off",
+    )
+    .unwrap();
 }
 
 fn expire(
@@ -427,15 +436,12 @@ fn expire(
         name
     );
 
-    let status = Command::new("zfs")
-        .args([
-            "set",
-            "readonly=on",
-            &format!("{}/{}/{}", filesystem.root, user, name),
-        ])
-        .status()
-        .unwrap();
-    assert!(status.success(), "failed to update readonly property");
+    zfs::set_property(
+        &format!("{}/{}/{}", filesystem.root, user, name),
+        "readonly",
+        "on",
+    )
+    .unwrap();
 }
 
 fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
@@ -487,15 +493,12 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                     )
                     .unwrap();
             } else {
-                let status = Command::new("zfs")
-                    .args([
-                        "set",
-                        "readonly=on",
-                        &format!("{}/{}/{}", filesystem.root, user, name),
-                    ])
-                    .status()
-                    .unwrap();
-                assert!(status.success(), "failed to update readonly property");
+                zfs::set_property(
+                    &format!("{}/{}/{}", filesystem.root, user, name),
+                    "readonly",
+                    "on",
+                )
+                .unwrap();
             }
         }
     }
