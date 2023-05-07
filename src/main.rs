@@ -1,7 +1,11 @@
 use chrono::{DateTime, Duration, Local};
 use clap::Parser;
 use rusqlite::Connection;
-use std::{collections::HashMap, fs, io, process::Command};
+use std::{
+    collections::HashMap,
+    fs, io,
+    process::{self, Command},
+};
 use users::{get_current_uid, get_current_username};
 
 const DB_PATH: &str = "/usr/local/share/workspaces/workspaces.db";
@@ -132,6 +136,9 @@ mod config {
         /// Days after which an expired dataset will be removed
         #[serde(deserialize_with = "from_days")]
         pub expired_retention: Duration,
+        /// Whether datasets can be created / extended
+        #[serde(default)]
+        pub disabled: bool,
     }
 
     fn from_days<'de, D>(deserializer: D) -> Result<Duration, D::Error>
@@ -141,6 +148,10 @@ mod config {
         let days: i64 = Deserialize::deserialize(deserializer)?;
         Ok(Duration::days(i64::from(days)))
     }
+}
+
+mod exit_codes {
+    pub const FS_DISABLED: i32 = 1;
 }
 
 fn create(
@@ -160,6 +171,10 @@ fn create(
         "duration can be at most {} days",
         filesystem.max_duration.num_days()
     );
+    if filesystem.disabled && get_current_uid() != 0 {
+        eprintln!("Filesystem is disabled. Please try another filesystem.");
+        process::exit(exit_codes::FS_DISABLED);
+    }
 
     let transaction = conn.transaction().unwrap();
     transaction
@@ -209,7 +224,7 @@ fn zfs_get(attribute: &str, volume: &str) -> io::Result<String> {
     let output = Command::new("zfs")
         .args(["get", attribute, volume])
         .output()?;
-    assert!(output.status.success());
+    assert!(output.status.success(), "failed to get ZFS attribute");
     let info_line = String::from_utf8(output.stdout).unwrap();
     let value = info_line
         .lines()
@@ -322,6 +337,10 @@ fn extend(
         "duration can be at most {} days",
         filesystem.max_duration.num_days()
     );
+    if filesystem.disabled && get_current_uid() != 0 {
+        eprintln!("Filesystem is disabled. Please recreate workspace on another filesystem.");
+        process::exit(exit_codes::FS_DISABLED);
+    }
 
     let rows_updated = conn
         .execute(
@@ -398,13 +417,13 @@ fn expire(
 fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
     println!("{:<15}\t{:<7}\t{:<16}", "FILESYSTEM", "FREE", "DURATION");
     filesystems.iter().for_each(|(name, info)| {
-        let available = zfs_get("available", name).unwrap();
-        println!(
-            "{:<15}\t{:>6}\t{:>7}d",
-            name,
-            available,
-            info.max_duration.num_days()
-        );
+        let available = zfs_get("available", &info.root).unwrap();
+        print!("{:<15}\t{:>6}", name, available);
+        if info.disabled {
+            println!("\t{:>7}", "disabled");
+        } else {
+            println!("\t{:>7}d", info.max_duration.num_days());
+        }
     });
 }
 
