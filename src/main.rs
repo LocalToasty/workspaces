@@ -21,6 +21,7 @@ mod exit_codes {
     pub const FS_DISABLED: i32 = 2;
     pub const TOO_HIGH_DURATION: i32 = 3;
     pub const UNKNOWN_VOLUME: i32 = 4;
+    pub const WORKSPACE_EXISTS: i32 = 4;
 }
 
 fn create(
@@ -48,13 +49,26 @@ fn create(
     }
 
     let transaction = conn.transaction().unwrap();
-    transaction
-        .execute(
-            "INSERT INTO workspaces (filesystem, user, name, expiration_time)
+    match transaction.execute(
+        "INSERT INTO workspaces (filesystem, user, name, expiration_time)
             VALUES (?1, ?2, ?3, ?4)",
-            (filesystem_name, user, name, Local::now() + *duration),
-        )
-        .unwrap();
+        (filesystem_name, user, name, Local::now() + *duration),
+    ) {
+        Ok(_) => {}
+        Err(rusqlite::Error::SqliteFailure(
+            libsqlite3_sys::Error {
+                code: libsqlite3_sys::ErrorCode::ConstraintViolation,
+                ..
+            },
+            _,
+        )) => {
+            eprintln!(
+                "This workspace already exists. You can extend it using `workspaces extend`."
+            );
+            process::exit(exit_codes::WORKSPACE_EXISTS);
+        }
+        Err(_) => unreachable!(),
+    };
 
     let volume = to_volume_string(&filesystem.root, user, name);
 

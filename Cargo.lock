@@ -844,6 +844,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
+ "libsqlite3-sys",
  "rusqlite",
  "serde",
  "toml",
