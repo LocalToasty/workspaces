@@ -3,7 +3,7 @@ use clap::Parser;
 use rusqlite::Connection;
 use std::{
     collections::HashMap,
-    fs, io,
+    fs,
     process::{self, Command},
 };
 use users::{get_current_uid, get_current_username};
@@ -201,9 +201,9 @@ fn create(
     assert!(status.success(), "failed to create dataset property");
 
     // get mountpoint
-    let mountpoint = zfs_get(
-        "mountpoint",
+    let mountpoint = zfs::get_property(
         &format!("{}/{}/{}", filesystem.root, user, name),
+        "mountpoint",
     )
     .unwrap();
 
@@ -223,22 +223,37 @@ fn create(
     println!("Created workspace at {}", mountpoint);
 }
 
-fn zfs_get(attribute: &str, volume: &str) -> io::Result<String> {
-    //TODO remove unwraps
-    let output = Command::new("zfs")
-        .args(["get", attribute, volume])
-        .output()?;
-    assert!(output.status.success(), "failed to get ZFS attribute");
-    let info_line = String::from_utf8(output.stdout).unwrap();
-    let value = info_line
-        .lines()
-        .nth(1)
-        .unwrap()
-        .split_whitespace()
-        .nth(2)
-        .unwrap()
-        .to_string();
-    Ok(value)
+mod zfs {
+    use std::{
+        io,
+        process::{self, Command},
+    };
+
+    #[derive(Debug)]
+    pub enum Error {
+        Command(io::Error),
+        ZfsStatus(process::Output),
+        AttributeParse,
+    }
+
+    pub fn get_property(volume: &str, property: &str) -> Result<String, Error> {
+        let output = Command::new("zfs")
+            .args(["get", property, volume])
+            .output()
+            .map_err(Error::Command)?;
+        if !output.status.success() {
+            return Err(Error::ZfsStatus(output));
+        }
+        let info_line = String::from_utf8(output.stdout).unwrap();
+        info_line
+            .lines()
+            .nth(1)
+            .ok_or(Error::AttributeParse)?
+            .split_whitespace()
+            .nth(2)
+            .ok_or(Error::AttributeParse)
+            .map(String::from)
+    }
 }
 
 #[derive(Debug)]
@@ -426,7 +441,7 @@ fn expire(
 fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
     println!("{:<15}\t{:<7}\t{:<16}", "FILESYSTEM", "FREE", "DURATION");
     filesystems.iter().for_each(|(name, info)| {
-        let available = zfs_get("available", &info.root).unwrap();
+        let available = zfs::get_property(&info.root, "available").unwrap();
         print!("{:<15}\t{:>6}", name, available);
         if info.disabled {
             println!("\t{:>7}", "disabled");
