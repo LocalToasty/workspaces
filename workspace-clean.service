@@ -1,6 +1,0 @@
-[Unit]
-Description="Clean up expired workspaces"
-
-[Service]
-type=oneshot
-ExecStart=/usr/local/bin/workspace clean

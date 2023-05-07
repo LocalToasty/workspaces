@@ -1,8 +1,13 @@
-target/release/workspace: src/main.rs
+.POSIX:
+
+BIN = target/release/workspaces
+
+$(BIN): src/main.rs
 	cargo build --release
 
-install: target/release/workspace
-	install --mode 4755 -T target/release/workspace /usr/local/bin/workspace
+install: $(BIN)
+	cp $(BIN) /usr/local/bin/
+	chmod 4755 $(BIN)
 	mkdir -p /usr/local/share/workspaces
-	cp workspace-clean.service /etc/systemd/system/
-	cp workspace-clean.timer /etc/systemd/system/
+	cp clean-workspaces.service /etc/systemd/system/
+	cp clean-workspaces.timer /etc/systemd/system/
