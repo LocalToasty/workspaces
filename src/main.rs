@@ -254,15 +254,16 @@ fn expire(
 }
 
 fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
-    println!("{:<15}\t{:<7}\t{:<16}", "FILESYSTEM", "FREE", "DURATION");
+    println!("{:<15}\t{:<7}\t{}\t{}", "FILESYSTEM", "FREE", "DURATION", "RETENTION");
     filesystems.iter().for_each(|(name, info)| {
         let available = zfs::get_property(&info.root, "available").unwrap();
-        print!("{:<15}\t{:>6}", name, available);
+        print!("{:<15}\t{:>7}", name, available);
         if info.disabled {
-            println!("\t{:>7}", "disabled");
+            print!("\t{:>8}", "disabled");
         } else {
-            println!("\t{:>7}d", info.max_duration.num_days());
+            print!("\t{:>7}d", info.max_duration.num_days());
         }
+        println!("\t{:>8}d", info.expired_retention.num_days());
     });
 }
 
