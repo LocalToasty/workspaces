@@ -7,7 +7,7 @@ $(BIN): src/main.rs
 
 install: $(BIN)
 	cp $(BIN) /usr/local/bin/
-	chmod 4755 $(BIN)
+	chmod u+s /usr/local/bin/workspaces
 	mkdir -p /usr/local/share/workspaces
 	cp clean-workspaces.service /etc/systemd/system/
 	cp clean-workspaces.timer /etc/systemd/system/
