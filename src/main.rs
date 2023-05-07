@@ -167,7 +167,7 @@ fn create(
     duration: &Duration,
 ) {
     if get_current_username().unwrap() != user && get_current_uid() != 0 {
-        eprint!("You are not allowed to execute this operation");
+        eprintln!("You are not allowed to execute this operation");
         process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
     }
     if filesystem.disabled && get_current_uid() != 0 {
@@ -358,7 +358,7 @@ fn extend(
     duration: &Duration,
 ) {
     if get_current_username().unwrap() != user && get_current_uid() != 0 {
-        eprint!("You are not allowed to execute this operation");
+        eprintln!("You are not allowed to execute this operation");
         process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
     }
     if filesystem.disabled && get_current_uid() != 0 {
@@ -412,7 +412,7 @@ fn expire(
     delete_on_next_clean: bool,
 ) {
     if get_current_username().unwrap() != user && get_current_uid() != 0 {
-        eprint!("You are not allowed to execute this operation");
+        eprintln!("You are not allowed to execute this operation");
         process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
     }
 
