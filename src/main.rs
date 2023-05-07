@@ -324,8 +324,10 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
     transaction.commit().unwrap();
 }
 
+//TODO make result
 const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
     // Creates initial database
+    conn.pragma_update(None, "journal_mode", "WAL").unwrap();
     let transaction = conn.transaction().unwrap();
     transaction
         .execute(
