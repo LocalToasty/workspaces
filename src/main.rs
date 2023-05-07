@@ -4,6 +4,7 @@ use rusqlite::Connection;
 use std::{
     collections::HashMap,
     fs,
+    os::unix::prelude::PermissionsExt,
     process::{self, Command},
 };
 use users::{get_current_uid, get_current_username};
@@ -200,18 +201,15 @@ fn create(
         .unwrap();
     assert!(status.success(), "failed to create dataset property");
 
-    // get mountpoint
     let mountpoint = zfs::get_property(
         &format!("{}/{}/{}", filesystem.root, user, name),
         "mountpoint",
     )
     .unwrap();
 
-    let status = Command::new("chmod")
-        .args(["750", &mountpoint])
-        .status()
-        .unwrap();
-    assert!(status.success(), "failed to set rights on dataset");
+    let mut permissions = fs::metadata(&mountpoint).unwrap().permissions();
+    permissions.set_mode(0o750);
+    fs::set_permissions(&mountpoint, permissions).unwrap();
 
     let status = Command::new("chown")
         .args([&format!("{}:{}", user, user), &mountpoint])
