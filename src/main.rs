@@ -240,7 +240,7 @@ fn expire(
     let rows_updated = conn
         .execute(
             "UPDATE workspaces
-            SET expiration_time = ?1
+            SET expiration_time = MIN(expiration_time, ?1)
             WHERE filesystem = ?2
                 AND user = ?3
                 AND name = ?4",
