@@ -165,7 +165,7 @@ fn create(
     duration: &Duration,
 ) {
     if get_current_username().unwrap() != user && get_current_uid() != 0 {
-        eprint!("you are not allowed to execute this operation");
+        eprint!("You are not allowed to execute this operation");
         process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
     }
     if filesystem.disabled && get_current_uid() != 0 {
@@ -174,7 +174,7 @@ fn create(
     }
     if duration > &filesystem.max_duration && get_current_uid() != 0 {
         eprintln!(
-            "duration can be at most {} days",
+            "Duration can be at most {} days",
             filesystem.max_duration.num_days()
         );
         process::exit(exit_codes::TOO_HIGH_DURATION);
@@ -333,7 +333,7 @@ fn extend(
     duration: &Duration,
 ) {
     if get_current_username().unwrap() != user && get_current_uid() != 0 {
-        eprint!("you are not allowed to execute this operation");
+        eprint!("You are not allowed to execute this operation");
         process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
     }
     if filesystem.disabled && get_current_uid() != 0 {
@@ -342,7 +342,7 @@ fn extend(
     }
     if duration > &filesystem.max_duration && get_current_uid() != 0 {
         eprintln!(
-            "duration can be at most {} days",
+            "Duration can be at most {} days",
             filesystem.max_duration.num_days()
         );
         process::exit(exit_codes::TOO_HIGH_DURATION);
@@ -383,7 +383,7 @@ fn expire(
     delete_on_next_clean: bool,
 ) {
     if get_current_username().unwrap() != user && get_current_uid() != 0 {
-        eprint!("you are not allowed to execute this operation");
+        eprint!("You are not allowed to execute this operation");
         process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
     }
 
