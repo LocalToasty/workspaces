@@ -317,7 +317,9 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                 .expect("unknown filesystem name");
             let volume = to_volume_string(&filesystem.root, &user, &name);
             if expiration_time < Local::now() - filesystem.expired_retention {
-                zfs::destroy(&volume).unwrap();
+                if let Err(_) = zfs::destroy(&volume) {
+                    continue;
+                }
                 transaction
                     .execute(
                         "DELETE FROM workspaces
