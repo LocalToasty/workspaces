@@ -46,7 +46,7 @@ ssd            	   321G	     30d	       7d
 To create a workspace named `testws` on the `bulk` filesystem with a ten-day
 expiry date, enter:
 ```console
-$ workspaces create -f bulk -n testws -d 10
+$ workspaces create -f bulk -d 10 testws
 Created workspace at /mnt/bulk/mvantreeck/testws
 ```
 
@@ -73,7 +73,7 @@ command:
 $ workspaces list
 NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
 testws                 	mvantreeck     	bulk           	expires in  2d	  104K	/mnt/bulk/mvantreeck/testws
-$ workspaces extend -f bulk -n testws -d 16
+$ workspaces extend -f bulk -d 16 testws
 $ workspaces list
 NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
 testws                 	mvantreeck     	bulk           	expires in 15d	  104K	/mnt/bulk/mvantreeck/testws
@@ -91,7 +91,7 @@ touch: cannot touch '/mnt/bulk/mvantreeck/testws/testfile': Read-only file syste
 
 However, you can make it writable again by extending it once more:
 ```console
-$ workspaces extend -f bulk -n testws -d 3
+$ workspaces extend -f bulk -d 3 testws
 $ workspaces list
 NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
 test1                  	mvantreeck     	bulk           	expires in  2d	  104K	/mnt/bulk/mvantreeck/test1
@@ -106,7 +106,7 @@ To manually expire a workspace that is no longer needed, you can use the
 `expire` command. After running this command, the workspace will will become
 read-only and marked for eventualy deletion:
 ```console
-$ workspaces expire -f bulk -n testws
+$ workspaces expire -f bulk testws
 $ workspaces list
 NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
 testws                 	mvantreeck     	bulk           	deleted in 29d	  104K	/mnt/bulk/mvantreeck/testws
@@ -119,7 +119,7 @@ deletion date, you can extend its expiry date using the `extend` command.
 However, if you want to free up space immediately and flag the workspace for
 immediate deletion, you can use the `--terminally` flag:
 ```console
-$ workspaces expire -f bulk -n testws --terminally
+$ workspaces expire -f bulk --terminally testws
 $ workspaces list
 NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
 testws                 	mvantreeck     	bulk           	deleted   soon	  104K	/mnt/bulk/mvantreeck/testws

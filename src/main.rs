@@ -380,7 +380,7 @@ fn main() {
     match args.command {
         cli::Command::Create {
             filesystem_name,
-            name,
+            workspace_name: name,
             duration,
             user,
         } => {

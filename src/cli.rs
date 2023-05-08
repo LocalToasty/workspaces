@@ -17,8 +17,8 @@ pub enum Command {
         /// Name of the workspace
         ///
         /// Must entirely consist of the characters [A-Za-z0-9_-].
-        #[arg(short, long, value_parser = parse_pathsafe)]
-        name: String,
+        #[arg(value_parser = parse_pathsafe)]
+        workspace_name: String,
 
         /// Duration in days to extend the workspace to
         ///
@@ -39,7 +39,7 @@ pub enum Command {
     /// Postpone the expiry date of an already existing workspace
     Extend {
         /// Name of the workspace
-        #[arg(short, long, value_parser = parse_pathsafe)]
+        #[arg(value_parser = parse_pathsafe)]
         name: String,
 
         /// Duration in days to extend the workspace until
@@ -60,7 +60,7 @@ pub enum Command {
     /// Expire a workspace
     Expire {
         /// Name of the workspace
-        #[arg(short, long, value_parser = parse_pathsafe)]
+        #[arg(value_parser = parse_pathsafe)]
         name: String,
         /// User the workspace belongs to
         #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string(), value_parser = parse_pathsafe)]
