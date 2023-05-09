@@ -16,7 +16,7 @@ mod zfs;
 /// Path to store the workspace database in
 const DB_PATH: &str = "/usr/local/share/workspaces/workspaces.db";
 /// Path of the configuration file
-const CONFIG_PATH: &str = "/usr/local/etc/workspaces.toml";
+const CONFIG_PATH: &str = "/etc/workspaces/workspaces.toml";
 
 mod exit_codes {
     /// The user tried executing an action they have no rights to do,

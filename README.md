@@ -15,8 +15,8 @@ Workspaces, run the following command:
 ```console
 $ make && sudo make install
 ```
-You must manually modify the `/usr/local/etc/workspaces.toml` file, and you must
-have already set up a ZFS zpool.
+You must manually modify the `/etc/workspaces/workspaces.toml` file, and you
+must have already set up a ZFS zpool.
 
 To activate automatic deletion of old workspaces, enable the corresponding
 systemd timer:
