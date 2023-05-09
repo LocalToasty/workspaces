@@ -13,6 +13,7 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Create a new workspace
+    #[clap(alias = "c")]
     Create {
         /// Name of the workspace
         ///
@@ -35,8 +36,10 @@ pub enum Command {
         filesystem_name: Option<String>,
     },
     /// List workspaces
+    #[clap(alias = "ls")]
     List,
     /// Postpone the expiry date of an already existing workspace
+    #[clap(alias = "ex")]
     Extend {
         /// Name of the workspace
         #[arg(value_parser = parse_pathsafe)]
@@ -78,6 +81,7 @@ pub enum Command {
         delete_on_next_clean: bool,
     },
     /// List all existing filesystems
+    #[clap(alias = "fi")]
     Filesystems,
     /// Clean up workspaces which not been extended in a while
     ///
