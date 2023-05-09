@@ -345,12 +345,12 @@ const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
     transaction
         .execute(
             "CREATE TABLE workspaces (
-            filesystem      TEXT     NOT NULL,
-            user            TEXT     NOT NULL,
-            name            TEXT     NOT NULL,
-            expiration_time DATETIME NOT NULL,
-            UNIQUE(filesystem, user, name)
-        )",
+                filesystem      TEXT     NOT NULL,
+                user            TEXT     NOT NULL,
+                name            TEXT     NOT NULL,
+                expiration_time DATETIME NOT NULL,
+                UNIQUE(filesystem, user, name)
+            )",
             (),
         )
         .unwrap();
