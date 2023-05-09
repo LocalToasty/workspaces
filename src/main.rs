@@ -135,7 +135,10 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
     for workspace in workspace_iter {
         let workspace = workspace.unwrap();
         let volume = to_volume_string(
-            &filesystems[&workspace.filesystem_name].root,
+            &filesystems
+                .get(&workspace.filesystem_name)
+                .expect("found workspace in database without corresponding config entry")
+                .root,
             &workspace.user,
             &workspace.name,
         );
