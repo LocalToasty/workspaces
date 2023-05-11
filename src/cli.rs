@@ -37,7 +37,19 @@ pub enum Command {
     },
     /// List workspaces
     #[clap(alias = "ls")]
-    List,
+    List {
+        /// Only show workspaces belonging to USER
+        ///
+        /// Can be specified multiple times
+        #[arg(short = 'u', long = "user", value_name = "USER", value_parser = parse_pathsafe)]
+        filter_users: Option<Vec<String>>,
+
+        /// Only show workspaces on FILESYSTEM
+        ///
+        /// Can be specified multiple times
+        #[arg(short = 'f', long = "filesytem", value_name = "FILESYSTEM", value_parser = parse_pathsafe)]
+        filter_filesystems: Option<Vec<String>>,
+    },
     /// Postpone the expiry date of an already existing workspace
     #[clap(alias = "ex")]
     Extend {

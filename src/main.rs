@@ -113,7 +113,12 @@ struct WorkspacesRow {
     expiration_time: DateTime<Local>,
 }
 
-fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
+fn list(
+    conn: &Connection,
+    filesystems: &HashMap<String, config::Filesystem>,
+    filter_users: &Option<Vec<String>>,
+    filter_filesystems: &Option<Vec<String>>,
+) {
     let mut statement = conn
         .prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")
         .unwrap();
@@ -134,6 +139,15 @@ fn list(conn: &Connection, filesystems: &HashMap<String, config::Filesystem>) {
     );
     for workspace in workspace_iter {
         let workspace = workspace.unwrap();
+        if !filter_users
+            .as_ref()
+            .map_or(true, |us| us.contains(&workspace.user))
+            || !filter_filesystems
+                .as_ref()
+                .map_or(true, |fs| fs.contains(&workspace.filesystem_name))
+        {
+            continue;
+        }
         let volume = to_volume_string(
             &filesystems
                 .get(&workspace.filesystem_name)
@@ -406,7 +420,15 @@ fn main() {
                 &duration,
             )
         }
-        cli::Command::List => list(&conn, &config.filesystems),
+        cli::Command::List {
+            filter_users,
+            filter_filesystems,
+        } => list(
+            &conn,
+            &config.filesystems,
+            &filter_users,
+            &filter_filesystems,
+        ),
         cli::Command::Extend {
             filesystem_name,
             name,
