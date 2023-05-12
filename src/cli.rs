@@ -35,6 +35,27 @@ pub enum Command {
         #[arg(short, long = "filesystem", value_name = "FILESYSTEM")]
         filesystem_name: Option<String>,
     },
+    /// Rename an already existing workspace
+    #[clap(alias = "mv")]
+    Rename {
+        /// Original name of the workspace
+        #[arg(value_parser = parse_pathsafe)]
+        src_workspace_name: String,
+
+        /// New name of the workspace
+        ///
+        /// Must entirely consist of the characters [A-Za-z0-9_-].
+        #[arg(value_parser = parse_pathsafe)]
+        dest_workspace_name: String,
+
+        /// User the workspace belongs to
+        #[arg(short, long, default_value_t = get_current_username().unwrap().to_string_lossy().to_string(), value_parser = parse_pathsafe)]
+        user: String,
+
+        /// Filesystem to create the workspace in
+        #[arg(short, long = "filesystem")]
+        filesystem_name: Option<String>,
+    },
     /// List workspaces
     #[clap(alias = "ls")]
     List {

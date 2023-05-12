@@ -105,6 +105,53 @@ fn to_volume_string(root: &str, user: &str, name: &str) -> String {
     format!("{}/{}/{}", root, user, name)
 }
 
+/// Renames an existing workspace
+fn rename(
+    conn: &mut Connection,
+    filesystem_name: &str,
+    filesystem: &config::Filesystem,
+    user: &str,
+    src_name: &str,
+    dest_name: &str,
+) {
+    if get_current_username().unwrap() != user && get_current_uid() != 0 {
+        eprintln!("You are not allowed to execute this operation");
+        process::exit(exit_codes::INSUFFICIENT_PRIVILEGES);
+    }
+    if filesystem.disabled && get_current_uid() != 0 {
+        eprintln!("Filesystem is disabled. Please try another filesystem.");
+        process::exit(exit_codes::FS_DISABLED);
+    }
+
+    let transaction = conn.transaction().unwrap();
+    match transaction.execute(
+        "UPDATE workspaces
+                SET name = ?1
+                WHERE filesystem = ?2
+                    AND user = ?3
+                    AND name = ?4",
+        (dest_name, filesystem_name, user, src_name),
+    ) {
+        Ok(_) => {}
+        Err(rusqlite::Error::SqliteFailure(
+            libsqlite3_sys::Error {
+                code: libsqlite3_sys::ErrorCode::ConstraintViolation,
+                ..
+            },
+            _,
+        )) => {
+            eprintln!("The target workspace already exists");
+            process::exit(exit_codes::WORKSPACE_EXISTS);
+        }
+        Err(_) => unreachable!(),
+    }
+
+    let src_volume = to_volume_string(&filesystem.root, user, src_name);
+    let dest_volume = to_volume_string(&filesystem.root, user, dest_name);
+    zfs::rename(&src_volume, &dest_volume).unwrap();
+    transaction.commit().unwrap();
+}
+
 #[derive(Debug)]
 struct WorkspacesRow {
     filesystem_name: String,
@@ -411,10 +458,7 @@ fn main() {
             create(
                 &mut conn,
                 &filesystem_name,
-                &config
-                    .filesystems
-                    .get(&filesystem_name)
-                    .expect("unknown filesystem name"),
+                &config.filesystems[&filesystem_name],
                 &user,
                 &name,
                 &duration,
@@ -429,6 +473,26 @@ fn main() {
             &filter_users,
             &filter_filesystems,
         ),
+        cli::Command::Rename {
+            src_workspace_name,
+            dest_workspace_name,
+            user,
+            filesystem_name,
+        } => {
+            let filesystem_name = filesystem_or_default_or_exit(
+                &filesystem_name,
+                &config.filesystems,
+                &config.default_filesystem,
+            );
+            rename(
+                &mut conn,
+                &filesystem_name,
+                &config.filesystems[&filesystem_name],
+                &user,
+                &src_workspace_name,
+                &dest_workspace_name,
+            )
+        }
         cli::Command::Extend {
             filesystem_name,
             name,

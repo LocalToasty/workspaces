@@ -37,6 +37,18 @@ pub fn destroy(volume: &str) -> Result<(), Error> {
     }
 }
 
+/// Renames a ZFS volume
+pub fn rename(src_volume: &str, dest_volume: &str) -> Result<(), Error> {
+    let status = Command::new("zfs")
+        .args(["rename", src_volume, dest_volume])
+        .status()
+        .map_err(Error::Command)?;
+    match status.success() {
+        true => Ok(()),
+        false => Err(Error::ZfsStatus(status)),
+    }
+}
+
 /// Retrieves a ZFS property
 pub fn get_property(volume: &str, property: &str) -> Result<String, Error> {
     let output = Command::new("zfs")
