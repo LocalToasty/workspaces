@@ -1,16 +1,17 @@
 use std::{
     io,
     process::{self, Command},
+    str::FromStr,
 };
 
 #[derive(Debug)]
 pub enum Error {
     /// An error occurring while running a command
     Command(io::Error),
-    /// The ZFS invocation completed, but returned a non-zero code.
+    /// The ZFS invocation completed, but returned a non-zero code
     ZfsStatus(process::ExitStatus),
-    /// Error while parsing ZFS's output.
-    AttributeParse,
+    /// Error while parsing ZFS's output
+    PropertyParse(Box<dyn std::error::Error>),
 }
 
 /// Creates a new ZFS volume
@@ -50,23 +51,24 @@ pub fn rename(src_volume: &str, dest_volume: &str) -> Result<(), Error> {
 }
 
 /// Retrieves a ZFS property
-pub fn get_property(volume: &str, property: &str) -> Result<String, Error> {
+pub fn get_property<F: FromStr>(volume: &str, property: &str) -> Result<F, Error>
+where
+    <F as FromStr>::Err: std::error::Error + 'static,
+{
     let output = Command::new("zfs")
-        .args(["get", property, volume])
+        .args([
+            "get", "-Hp", // make zfs output easily parsable
+            "-o", "value", // output only desired value
+            property, volume,
+        ])
         .output()
         .map_err(Error::Command)?;
     if !output.status.success() {
         return Err(Error::ZfsStatus(output.status));
     }
-    let info_line = String::from_utf8(output.stdout).unwrap();
-    info_line
-        .lines()
-        .nth(1)
-        .ok_or(Error::AttributeParse)?
-        .split_whitespace()
-        .nth(2)
-        .ok_or(Error::AttributeParse)
-        .map(String::from)
+    let mut info_line = String::from_utf8(output.stdout).unwrap();
+    info_line.pop(); // remove trailing newline
+    info_line.parse().map_err(|e| Error::PropertyParse(Box::new(e)))
 }
 
 /// Sets a ZFS property

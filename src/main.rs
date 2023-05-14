@@ -5,6 +5,7 @@ use std::{
     collections::HashMap,
     fs,
     os::unix::prelude::PermissionsExt,
+    path::PathBuf,
     process::{self, Command},
 };
 use users::{get_current_uid, get_current_username};
@@ -203,9 +204,9 @@ fn list(
             &workspace.user,
             &workspace.name,
         );
-        let mountpoint = zfs::get_property(&volume, "mountpoint");
-        let referenced = zfs::get_property(&volume, "referenced");
-        if mountpoint.is_err() || referenced.is_err() {
+        let mountpoint = zfs::get_property::<PathBuf>(&volume, "mountpoint");
+        let referenced_gb = zfs::get_property::<usize>(&volume, "referenced");
+        if mountpoint.is_err() || referenced_gb.is_err() {
             eprintln!("Failed to get info for {}", volume);
             continue;
         }
@@ -234,7 +235,11 @@ fn list(
             );
         }
 
-        println!("\t{:>6}\t{}", referenced.unwrap(), mountpoint.unwrap());
+        println!(
+            "\t{:>5}G\t{}",
+            referenced_gb.unwrap() / (1 << 30),
+            mountpoint.unwrap().display()
+        );
     }
 }
 
@@ -348,8 +353,8 @@ fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
         "FILESYSTEM", "FREE", "DURATION", "RETENTION"
     );
     filesystems.iter().for_each(|(name, info)| {
-        let available = zfs::get_property(&info.root, "available").unwrap();
-        print!("{:<15}\t{:>6}", name, available);
+        let available_gb: usize = zfs::get_property(&info.root, "available").unwrap();
+        print!("{:<15}\t{:>5}G", name, available_gb / (1 << 30));
         if info.disabled {
             print!("\t{:>8}", "disabled");
         } else {
