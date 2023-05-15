@@ -182,8 +182,8 @@ fn list(
         .unwrap();
 
     println!(
-        "{:<23}\t{:<15}\t{:<15}\t{:<14}\t{:<6}\t{}",
-        "NAME", "USER", "FILESYSTEM", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
+        "{:<23}\t{:<15}\t{:<7}\t{:<14}\t{:<6}\t{}",
+        "NAME", "USER", "FS", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
     );
     for workspace in workspace_iter {
         let workspace = workspace.unwrap();
@@ -212,7 +212,7 @@ fn list(
         }
 
         print!(
-            "{:<23}\t{:<15}\t{:<15}",
+            "{:<23}\t{:<15}\t{:<7}",
             workspace.name, workspace.user, workspace.filesystem_name
         );
 
