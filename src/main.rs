@@ -222,11 +222,16 @@ fn list(
             print!("\tdeleted   soon");
         } else if Local::now() > workspace.expiration_time {
             print!(
-                "\tdeleted in {:>2}d",
+                "\t\x1b[31;1mdeleted in {:>2}d\x1b[0m",
                 (workspace.expiration_time
                     + filesystems[&workspace.filesystem_name].expired_retention
                     - Local::now())
                 .num_days()
+            );
+        } else if workspace.expiration_time - Local::now() < Duration::days(30) {
+            print!(
+                "\t\x1b[33mexpires in {:>2}d\x1b[0m",
+                (workspace.expiration_time - Local::now()).num_days()
             );
         } else {
             print!(
