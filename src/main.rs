@@ -219,7 +219,7 @@ fn list(
         if Local::now()
             > workspace.expiration_time + filesystems[&workspace.filesystem_name].expired_retention
         {
-            print!("\tdeleted   soon");
+            print!("\t\x1b[31;1mdeleted   soon\x1b[0m");
         } else if Local::now() > workspace.expiration_time {
             print!(
                 "\t\x1b[31;1mdeleted in {:>2}d\x1b[0m",
