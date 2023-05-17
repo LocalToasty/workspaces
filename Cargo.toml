@@ -9,6 +9,7 @@ edition = "2021"
 chrono = "0.4.24"
 clap = { version = "4.2.7", features = ["derive"] }
 libsqlite3-sys = "0.26.0"
+prettytable-rs = "0.10.0"
 rusqlite = { version = "0.29.0", features = ["chrono"] }
 serde = { version = "1.0.162", features = ["derive"] }
 toml = "0.7.3"

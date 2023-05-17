@@ -1,5 +1,5 @@
 use chrono::Duration;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::{error::Error, fmt, num::ParseIntError};
 use users::get_current_username;
 
@@ -70,6 +70,12 @@ pub enum Command {
         /// Can be specified multiple times
         #[arg(short = 'f', long = "filesytem", value_name = "FILESYSTEM", value_parser = parse_pathsafe)]
         filter_filesystems: Option<Vec<String>>,
+
+        /// Columns to display
+        ///
+        /// Can be specified multiple times
+        #[arg(short, long, value_name = "COLUMN")]
+        output: Option<Vec<WorkspacesColumns>>,
     },
     /// Postpone the expiry date of an already existing workspace
     #[clap(alias = "ex")]
@@ -115,12 +121,51 @@ pub enum Command {
     },
     /// List all existing filesystems
     #[clap(alias = "fi")]
-    Filesystems,
+    Filesystems {
+        /// Columns to display
+        ///
+        /// Can be specified multiple times
+        #[arg(short, long, value_name = "COLUMN")]
+        output: Option<Vec<FilesystemsColumns>>,
+    },
     /// Clean up workspaces which not been extended in a while
     ///
     /// This will delete all workspaces marked as `deleted soon` in `workspaces list`,
     /// including other users' workspaces.
     Clean,
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+pub enum FilesystemsColumns {
+    /// Name of the filesystem
+    Name,
+    /// Space used in GiB
+    Used,
+    /// Space left in GiB
+    Free,
+    /// Total space in GiB
+    Total,
+    /// Maximum expiry duration in days of workspaces on this filesystem
+    Duration,
+    /// Number of days a read-only copy of a workspace is retained after expiry
+    Retention,
+}
+
+impl fmt::Display for FilesystemsColumns {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                FilesystemsColumns::Name => "NAME",
+                FilesystemsColumns::Used => "USED",
+                FilesystemsColumns::Free => "FREE",
+                FilesystemsColumns::Total => "Total",
+                FilesystemsColumns::Duration => "DURATION",
+                FilesystemsColumns::Retention => "RETENTION",
+            }
+        )
+    }
 }
 
 /// String contains characters which are not [A-Za-z0-9_-]

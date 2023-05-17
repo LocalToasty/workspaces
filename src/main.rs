@@ -1,5 +1,7 @@
 use chrono::{DateTime, Duration, Local};
 use clap::Parser;
+use cli::FilesystemsColumns;
+use prettytable::{color, format::FormatBuilder, Attr, Cell, Row, Table};
 use rusqlite::Connection;
 use std::{
     collections::HashMap,
@@ -352,21 +354,77 @@ fn expire(
     .unwrap();
 }
 
-fn filesystems(filesystems: &HashMap<String, config::Filesystem>) {
-    println!(
-        "{:<15}\t{:<6}\t{}\t{}",
-        "FILESYSTEM", "FREE", "DURATION", "RETENTION"
-    );
-    filesystems.iter().for_each(|(name, info)| {
-        let available_gb: usize = zfs::get_property(&info.root, "available").unwrap();
-        print!("{:<15}\t{:>5}G", name, available_gb / (1 << 30));
-        if info.disabled {
-            print!("\t{:>8}", "disabled");
-        } else {
-            print!("\t{:>7}d", info.max_duration.num_days());
-        }
-        println!("\t{:>8}d", info.expired_retention.num_days());
-    });
+fn filesystems(
+    filesystems: &HashMap<String, config::Filesystem>,
+    output: &Option<Vec<cli::FilesystemsColumns>>,
+) {
+    // the default columns
+    let output = output.clone().unwrap_or(vec![
+        FilesystemsColumns::Name,
+        FilesystemsColumns::Used,
+        FilesystemsColumns::Free,
+        FilesystemsColumns::Total,
+        FilesystemsColumns::Duration,
+        FilesystemsColumns::Retention,
+    ]);
+
+    let mut table = Table::new();
+    table.set_format(FormatBuilder::new().padding(0, 2).build());
+
+    table.add_row(output.clone().into());
+
+    for (name, info) in filesystems {
+        let used = zfs::get_property::<usize>(&info.root, "used").unwrap();
+        let available = zfs::get_property::<usize>(&info.root, "available").unwrap();
+        let total = used + available;
+        table.add_row(Row::new(
+            output
+                .iter()
+                .map(|column| match column {
+                    FilesystemsColumns::Name => Cell::new(name),
+                    FilesystemsColumns::Used => {
+                        Cell::new(&format!("{}G", used / (1 << 30))).style_spec("r")
+                    }
+                    FilesystemsColumns::Free => {
+                        Cell::new(&format!("{}G", available / (1 << 30))).style_spec("r")
+                    }
+                    FilesystemsColumns::Total => {
+                        Cell::new(&format!("{}G", total / (1 << 30))).style_spec("r")
+                    }
+                    FilesystemsColumns::Duration => match info.disabled {
+                        true => Cell::new("disabled"),
+                        false => {
+                            Cell::new(&format!("{}d", info.max_duration.num_days())).style_spec("r")
+                        }
+                    },
+                    FilesystemsColumns::Retention => {
+                        Cell::new(&format!("{}d", info.expired_retention.num_days()))
+                            .style_spec("r")
+                    }
+                })
+                .map(|c| {
+                    // color if almost full
+                    if used as f64 > total as f64 * 0.9 {
+                        c.with_style(Attr::ForegroundColor(color::RED))
+                    } else if used as f64 > total as f64 * 0.75 {
+                        c.with_style(Attr::ForegroundColor(color::YELLOW))
+                    } else {
+                        c
+                    }
+                })
+                .map(|c| {
+                    // dim if disabled
+                    if info.disabled {
+                        c.with_style(Attr::Dim)
+                    } else {
+                        c
+                    }
+                })
+                .collect(),
+        ));
+    }
+
+    table.printstd();
 }
 
 fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem>) {
@@ -543,7 +601,7 @@ fn main() {
                 delete_on_next_clean,
             )
         }
-        cli::Command::Filesystems => filesystems(&config.filesystems),
+        cli::Command::Filesystems { output } => filesystems(&config.filesystems, &output),
         cli::Command::Clean => clean(&mut conn, &config.filesystems),
     }
 }
