@@ -1,7 +1,11 @@
 use chrono::{DateTime, Duration, Local};
 use clap::Parser;
 use cli::FilesystemsColumns;
-use prettytable::{color, format::FormatBuilder, Attr, Cell, Row, Table};
+use prettytable::{
+    color,
+    format::{Alignment, FormatBuilder},
+    Attr, Cell, Row, Table,
+};
 use rusqlite::Connection;
 use std::{
     collections::HashMap,
@@ -389,13 +393,13 @@ fn filesystems(
                 .map(|column| match column {
                     FilesystemsColumns::Name => Cell::new(name),
                     FilesystemsColumns::Used => {
-                        Cell::new(&format!("{}G", used / (1 << 30))).style_spec("r")
+                        Cell::new_align(&format!("{}G", used / (1 << 30)), Alignment::RIGHT)
                     }
                     FilesystemsColumns::Free => {
-                        Cell::new(&format!("{}G", available / (1 << 30))).style_spec("r")
+                        Cell::new_align(&format!("{}G", available / (1 << 30)), Alignment::RIGHT)
                     }
                     FilesystemsColumns::Total => {
-                        Cell::new(&format!("{}G", total / (1 << 30))).style_spec("r")
+                        Cell::new_align(&format!("{}G", total / (1 << 30)), Alignment::RIGHT)
                     }
                     FilesystemsColumns::Duration => match info.disabled {
                         true => Cell::new("disabled"),
