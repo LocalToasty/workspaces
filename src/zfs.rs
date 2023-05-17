@@ -68,7 +68,9 @@ where
     }
     let mut info_line = String::from_utf8(output.stdout).unwrap();
     info_line.pop(); // remove trailing newline
-    info_line.parse().map_err(|e| Error::PropertyParse(Box::new(e)))
+    info_line
+        .parse()
+        .map_err(|e| Error::PropertyParse(Box::new(e)))
 }
 
 /// Sets a ZFS property
