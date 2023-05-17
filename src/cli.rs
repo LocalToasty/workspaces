@@ -136,6 +136,39 @@ pub enum Command {
 }
 
 #[derive(Clone, Debug, ValueEnum)]
+pub enum WorkspacesColumns {
+    /// Name of the workspace
+    Name,
+    /// Owner of the workspace
+    User,
+    /// Filesystem the workspace is on
+    Fs,
+    /// Size of the workspace in GiB
+    Size,
+    /// Days until expiry / deletion
+    Expiry,
+    /// Mountpoint of the workspace
+    Mountpoint,
+}
+
+impl fmt::Display for WorkspacesColumns {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                WorkspacesColumns::Name => "NAME",
+                WorkspacesColumns::User => "USER",
+                WorkspacesColumns::Fs => "FS",
+                WorkspacesColumns::Size => "SIZE",
+                WorkspacesColumns::Expiry => "EXPIRY",
+                WorkspacesColumns::Mountpoint => "MOUNTPOINT",
+            }
+        )
+    }
+}
+
+#[derive(Clone, Debug, ValueEnum)]
 pub enum FilesystemsColumns {
     /// Name of the filesystem
     Name,

@@ -172,7 +172,30 @@ fn list(
     filesystems: &HashMap<String, config::Filesystem>,
     filter_users: &Option<Vec<String>>,
     filter_filesystems: &Option<Vec<String>>,
+    output: &Option<Vec<cli::WorkspacesColumns>>,
 ) {
+    use cli::WorkspacesColumns;
+    // the default columns
+    let output = output.clone().unwrap_or(vec![
+        WorkspacesColumns::Name,
+        WorkspacesColumns::User,
+        WorkspacesColumns::Fs,
+        WorkspacesColumns::Size,
+        WorkspacesColumns::Expiry,
+        WorkspacesColumns::Mountpoint,
+    ]);
+
+    let mut table = Table::new();
+    table.set_format(FormatBuilder::new().padding(0, 2).build());
+
+    // bold title row
+    table.set_titles(Row::new(
+        output
+            .iter()
+            .map(|h| Cell::new(&h.to_string()).with_style(Attr::Bold))
+            .collect(),
+    ));
+
     let mut statement = conn
         .prepare("SELECT filesystem, user, name, expiration_time FROM workspaces")
         .unwrap();
@@ -187,10 +210,6 @@ fn list(
         })
         .unwrap();
 
-    println!(
-        "{:<23}\t{:<15}\t{:<7}\t{:<14}\t{:<6}\t{}",
-        "NAME", "USER", "FS", "EXPIRY DATE", "SIZE", "MOUNTPOINT"
-    );
     for workspace in workspace_iter {
         let workspace = workspace.unwrap();
         if !filter_users
@@ -210,48 +229,74 @@ fn list(
             &workspace.user,
             &workspace.name,
         );
+        let referenced = zfs::get_property::<usize>(&volume, "referenced");
         let mountpoint = zfs::get_property::<PathBuf>(&volume, "mountpoint");
-        let referenced_gb = zfs::get_property::<usize>(&volume, "referenced");
-        if mountpoint.is_err() || referenced_gb.is_err() {
+        if mountpoint.is_err() || referenced.is_err() {
             eprintln!("Failed to get info for {}", volume);
             continue;
         }
-
-        print!(
-            "{:<23}\t{:<15}\t{:<7}",
-            workspace.name, workspace.user, workspace.filesystem_name
-        );
-
-        if Local::now()
-            > workspace.expiration_time + filesystems[&workspace.filesystem_name].expired_retention
-        {
-            print!("\t\x1b[31;1mdeleted   soon\x1b[0m");
-        } else if Local::now() > workspace.expiration_time {
-            print!(
-                "\t\x1b[31;1mdeleted in {:>2}d\x1b[0m",
-                (workspace.expiration_time
-                    + filesystems[&workspace.filesystem_name].expired_retention
-                    - Local::now())
-                .num_days()
-            );
-        } else if workspace.expiration_time - Local::now() < Duration::days(30) {
-            print!(
-                "\t\x1b[33mexpires in {:>2}d\x1b[0m",
-                (workspace.expiration_time - Local::now()).num_days()
-            );
-        } else {
-            print!(
-                "\texpires in {:>2}d",
-                (workspace.expiration_time - Local::now()).num_days()
-            );
-        }
-
-        println!(
-            "\t{:>5}G\t{}",
-            referenced_gb.unwrap() / (1 << 30),
-            mountpoint.unwrap().display()
-        );
+        table.add_row(Row::new(
+            output
+                .iter()
+                .map(|column| match column {
+                    WorkspacesColumns::Name => Cell::new(&workspace.name),
+                    WorkspacesColumns::User => Cell::new(&workspace.user),
+                    WorkspacesColumns::Fs => Cell::new(&workspace.filesystem_name),
+                    WorkspacesColumns::Expiry => {
+                        if Local::now()
+                            > workspace.expiration_time
+                                + filesystems[&workspace.filesystem_name].expired_retention
+                        {
+                            Cell::new("deleted soon")
+                                .with_style(Attr::Bold)
+                                .with_style(Attr::ForegroundColor(color::RED))
+                        } else if Local::now() > workspace.expiration_time {
+                            Cell::new_align(
+                                &format!(
+                                    "deleted in {:>2}d",
+                                    (workspace.expiration_time
+                                        + filesystems[&workspace.filesystem_name]
+                                            .expired_retention
+                                        - Local::now())
+                                    .num_days()
+                                ),
+                                Alignment::RIGHT,
+                            )
+                            .with_style(Attr::Bold)
+                            .with_style(Attr::ForegroundColor(color::RED))
+                        } else if workspace.expiration_time - Local::now() < Duration::days(30) {
+                            Cell::new_align(
+                                &format!(
+                                    "expires in {:>2}d",
+                                    (workspace.expiration_time - Local::now()).num_days()
+                                ),
+                                Alignment::RIGHT,
+                            )
+                            .with_style(Attr::Bold)
+                            .with_style(Attr::ForegroundColor(color::RED))
+                        } else {
+                            Cell::new_align(
+                                &format!(
+                                    "expires in {:>2}d",
+                                    (workspace.expiration_time - Local::now()).num_days()
+                                ),
+                                Alignment::RIGHT,
+                            )
+                        }
+                    }
+                    WorkspacesColumns::Size => Cell::new_align(
+                        &format!("{}G", referenced.as_ref().unwrap() / (1 << 30)),
+                        Alignment::RIGHT,
+                    ),
+                    WorkspacesColumns::Mountpoint => {
+                        Cell::new(mountpoint.as_ref().unwrap().to_str().unwrap())
+                    }
+                })
+                .collect(),
+        ));
     }
+
+    table.printstd();
 }
 
 fn extend(
@@ -545,11 +590,13 @@ fn main() {
         cli::Command::List {
             filter_users,
             filter_filesystems,
+            output,
         } => list(
             &conn,
             &config.filesystems,
             &filter_users,
             &filter_filesystems,
+            &output,
         ),
         cli::Command::Rename {
             src_workspace_name,
