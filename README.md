@@ -116,15 +116,6 @@ touch: cannot touch '/mnt/bulk/mvantreeck/testws/testfile': Read-only file syste
 
 If you change your mind and decide you need the workspace again before its final
 deletion date, you can extend its expiry date using the `extend` command.
-However, if you want to free up space immediately and flag the workspace for
-immediate deletion, you can use the `--terminally` flag:
-```console
-$ workspaces expire -f bulk --terminally testws
-$ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	deleted   soon	  104K	/mnt/bulk/mvantreeck/testws
-```
-This will delete the workspace the next time the garbage collector is run.
 
 ### Manually Running the Garbage Collector
 
