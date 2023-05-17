@@ -356,10 +356,10 @@ fn expire(
 
 fn filesystems(
     filesystems: &HashMap<String, config::Filesystem>,
-    output: &Option<Vec<cli::FilesystemsColumns>>,
+    output: Option<Vec<cli::FilesystemsColumns>>,
 ) {
     // the default columns
-    let output = output.clone().unwrap_or(vec![
+    let output = output.unwrap_or(vec![
         FilesystemsColumns::Name,
         FilesystemsColumns::Used,
         FilesystemsColumns::Free,
@@ -371,7 +371,13 @@ fn filesystems(
     let mut table = Table::new();
     table.set_format(FormatBuilder::new().padding(0, 2).build());
 
-    table.add_row(output.clone().into());
+    // bold title row
+    table.set_titles(Row::new(
+        output
+            .iter()
+            .map(|h| Cell::new(&h.to_string()).with_style(Attr::Bold))
+            .collect(),
+    ));
 
     for (name, info) in filesystems {
         let used = zfs::get_property::<usize>(&info.root, "used").unwrap();
@@ -601,7 +607,7 @@ fn main() {
                 delete_on_next_clean,
             )
         }
-        cli::Command::Filesystems { output } => filesystems(&config.filesystems, &output),
+        cli::Command::Filesystems { output } => filesystems(&config.filesystems, output),
         cli::Command::Clean => clean(&mut conn, &config.filesystems),
     }
 }
