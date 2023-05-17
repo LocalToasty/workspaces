@@ -18,3 +18,4 @@ install: $(BIN)
 	# install systemd service / timer
 	cp clean-workspaces.service /etc/systemd/system/
 	cp clean-workspaces.timer /etc/systemd/system/
+	systemctl daemon-reload
