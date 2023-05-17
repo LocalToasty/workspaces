@@ -272,8 +272,7 @@ fn list(
                                 ),
                                 Alignment::RIGHT,
                             )
-                            .with_style(Attr::Bold)
-                            .with_style(Attr::ForegroundColor(color::RED))
+                            .with_style(Attr::ForegroundColor(color::YELLOW))
                         } else {
                             Cell::new_align(
                                 &format!(
