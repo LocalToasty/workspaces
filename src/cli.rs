@@ -193,7 +193,7 @@ impl fmt::Display for FilesystemsColumns {
                 FilesystemsColumns::Name => "NAME",
                 FilesystemsColumns::Used => "USED",
                 FilesystemsColumns::Free => "FREE",
-                FilesystemsColumns::Total => "Total",
+                FilesystemsColumns::Total => "TOTAL",
                 FilesystemsColumns::Duration => "DURATION",
                 FilesystemsColumns::Retention => "RETENTION",
             }
