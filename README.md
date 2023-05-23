@@ -38,9 +38,9 @@ read-only copy of your workspace will be kept after it expires before it is
 finally deleted:
 ```console
 $ workspaces filesystems
-FILESYSTEM     	FREE   	DURATION	RETENTION
-bulk           	  9.40T	     90d	      30d
-ssd            	   321G	     30d	       7d
+NAME  USED   FREE    TOTAL   DURATION  RETENTION
+bulk  4805G  17391G  22196G       90d        30d
+ssd      0G   5999G   5999G       30d         7d
 ```
 
 To create a workspace named `testws` on the `bulk` filesystem with a ten-day
@@ -53,16 +53,13 @@ Created workspace at /mnt/bulk/mvantreeck/testws
 Use the `workspaces list` command to view all available workspaces:
 ```console
 $ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	expires in  9d	   96K	/mnt/bulk/mvantreeck/testws
+NAME    USER        FS    EXPIRY          SIZE  MOUNTPOINT
+testws  mvantreeck  bulk  expires in  9d    0G  /mnt/bulk/mvantreeck/testws
 ```
 
 You may now use your workspace like any other folder:
 ```console
 $ echo "Hello workspaces" > /mnt/bulk/mvantreeck/testws/testfile
-$ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	expires in  9d	  104K	/mnt/bulk/mvantreeck/testws
 ```
 
 ### Extending a Workspace
@@ -71,20 +68,20 @@ If you need to extend the expiry date of your workspace, use the `extend`
 command:
 ```console
 $ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	expires in  2d	  104K	/mnt/bulk/mvantreeck/testws
+NAME    USER        FS    EXPIRY          SIZE  MOUNTPOINT
+testws  mvantreeck  bulk  expires in  3d    4G  /mnt/bulk/mvantreeck/testws
 $ workspaces extend -f bulk -d 16 testws
 $ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	expires in 15d	  104K	/mnt/bulk/mvantreeck/testws
+NAME    USER        FS    EXPIRY          SIZE  MOUNTPOINT
+testws  mvantreeck  bulk  expires in 15d    4G  /mnt/bulk/mvantreeck/testws
 ```
 
 If you fail to extend your workspace in time, it will expire and become
 read-only:
 ```console
 $ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	deleted in 23d	  104K	/mnt/bulk/mvantreeck/testws
+NAME    USER        FS    EXPIRY          SIZE  MOUNTPOINT
+testws  mvantreeck  bulk  deleted in 23d   34G  /mnt/bulk/mvantreeck/testws
 $ touch /mnt/bulk/mvantreeck/testws/testfile
 touch: cannot touch '/mnt/bulk/mvantreeck/testws/testfile': Read-only file system
 ```
@@ -93,8 +90,8 @@ However, you can make it writable again by extending it once more:
 ```console
 $ workspaces extend -f bulk -d 3 testws
 $ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-test1                  	mvantreeck     	bulk           	expires in  2d	  104K	/mnt/bulk/mvantreeck/test1
+NAME    USER        FS    EXPIRY          SIZE  MOUNTPOINT
+testws  mvantreeck  bulk  expires in  2d   34G  /mnt/bulk/mvantreeck/testws
 $ touch /mnt/bulk/mvantreeck/test1/testfile	# completes successfully
 ```
 
@@ -108,8 +105,8 @@ read-only and marked for eventualy deletion:
 ```console
 $ workspaces expire -f bulk testws
 $ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	deleted in 29d	  104K	/mnt/bulk/mvantreeck/testws
+NAME    USER        FS    EXPIRY          SIZE  MOUNTPOINT
+testws  mvantreeck  bulk  deleted in 29d   58G  /mnt/bulk/mvantreeck/testws
 $ touch /mnt/bulk/mvantreeck/testws/testfile
 touch: cannot touch '/mnt/bulk/mvantreeck/testws/testfile': Read-only file system
 ```
@@ -125,9 +122,9 @@ However, you can also manually run the garbage collector using the clean
 command:
 ```console
 $ workspaces list
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
-testws                 	mvantreeck     	bulk           	deleted   soon	  104K	/mnt/bulk/mvantreeck/testws
+NAME    USER        FS    EXPIRY        SIZE  MOUNTPOINT
+testws  mvantreeck  bulk  deleted soon   58G  /mnt/bulk/mvantreeck/testws
 $ workspaces clean
-NAME                   	USER           	FILESYSTEM     	EXPIRY DATE   	SIZE  	MOUNTPOINT
+NAME  USER  FS  EXPIRY  SIZE  MOUNTPOINT
 [ no workspaces ]
 ```
