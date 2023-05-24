@@ -345,7 +345,7 @@ fn extend(
     };
 
     zfs::set_property(
-        &to_volume_string(&filesystem.root, &user, &name),
+        &to_volume_string(&filesystem.root, user, name),
         "readonly",
         "off",
     )
@@ -395,7 +395,7 @@ fn expire(
     };
 
     zfs::set_property(
-        &to_volume_string(&filesystem.root, &user, &name),
+        &to_volume_string(&filesystem.root, user, name),
         "readonly",
         "on",
     )
@@ -503,7 +503,7 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                 .expect("unknown filesystem name");
             let volume = to_volume_string(&filesystem.root, &user, &name);
             if expiration_time < Local::now() - filesystem.expired_retention {
-                if let Err(_) = zfs::destroy(&volume) {
+                if zfs::destroy(&volume).is_err() {
                     continue;
                 }
                 transaction
@@ -629,7 +629,7 @@ fn main() {
                 &config.default_filesystem,
             );
             extend(
-                &mut conn,
+                &conn,
                 &filesystem_name,
                 &config.filesystems[&filesystem_name],
                 &user,
@@ -649,7 +649,7 @@ fn main() {
                 &config.default_filesystem,
             );
             expire(
-                &mut conn,
+                &conn,
                 &filesystem_name,
                 &config.filesystems[&filesystem_name],
                 &user,

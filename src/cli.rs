@@ -219,7 +219,7 @@ impl Error for NotPathsafeError {}
 
 /// Ensures string only contains the characters [A-Za-z0-9_-]
 fn parse_pathsafe(ident: &str) -> Result<String, NotPathsafeError> {
-    if ident.len() > 0
+    if !ident.is_empty()
         && ident
             .chars()
             .all(|c| c.is_alphanumeric() || c == '_' || c == '-')

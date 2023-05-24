@@ -31,5 +31,5 @@ where
     D: Deserializer<'de>,
 {
     let days: i64 = Deserialize::deserialize(deserializer)?;
-    Ok(Duration::days(i64::from(days)))
+    Ok(Duration::days(days))
 }

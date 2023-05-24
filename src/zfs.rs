@@ -17,7 +17,7 @@ pub enum Error {
 /// Creates a new ZFS volume
 pub fn create(volume: &str) -> Result<(), Error> {
     let status = Command::new("zfs")
-        .args(["create", "-p", &volume])
+        .args(["create", "-p", volume])
         .status()
         .map_err(Error::Command)?;
     match status.success() {
@@ -29,7 +29,7 @@ pub fn create(volume: &str) -> Result<(), Error> {
 /// Destroys a ZFS volume
 pub fn destroy(volume: &str) -> Result<(), Error> {
     let status = Command::new("zfs")
-        .args(["destroy", &volume])
+        .args(["destroy", volume])
         .status()
         .map_err(Error::Command)?;
     match status.success() {
