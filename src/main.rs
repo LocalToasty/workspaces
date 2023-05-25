@@ -21,7 +21,7 @@ mod config;
 mod zfs;
 
 /// Path to store the workspace database in
-const DB_PATH: &str = "/usr/local/share/workspaces/workspaces.db";
+const DB_PATH: &str = "/usr/local/lib/workspaces/workspaces.db";
 /// Path of the configuration file
 const CONFIG_PATH: &str = "/etc/workspaces/workspaces.toml";
 

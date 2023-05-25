@@ -14,7 +14,10 @@ install: $(BIN)
 	cp workspaces.toml /etc/workspaces/workspaces.example.toml
 	test -e /etc/workspaces/workspaces.toml || cp workspaces.toml /etc/workspaces/
 	# make database dir
-	mkdir -p /usr/local/share/workspaces
+	mkdir -p /usr/local/lib/workspaces
+	#TODO this will be removed for version 0.4.0
+	# move already existing database to new location if necessary
+	test -e /usr/local/share/workspaces/workspaces.db && mv /usr/local/share/workspaces/workspaces.db /usr/local/lib/workspaces/workspaces.db
 	# install systemd service / timer
 	cp clean-workspaces.service /etc/systemd/system/
 	cp clean-workspaces.timer /etc/systemd/system/
