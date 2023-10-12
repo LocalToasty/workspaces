@@ -20,11 +20,6 @@ mod cli;
 mod config;
 mod zfs;
 
-/// Path to store the workspace database in
-const DB_PATH: &str = "/usr/local/lib/workspaces/workspaces.db";
-/// Path of the configuration file
-const CONFIG_PATH: &str = "/etc/workspaces/workspaces.toml";
-
 mod exit_codes {
     /// The user tried executing an action they have no rights to do,
     /// i.e. expiring another user's workspace
@@ -546,15 +541,16 @@ const UPDATE_DB: &[fn(&mut Connection)] = &[|conn| {
 const NEWEST_DB_VERSION: usize = UPDATE_DB.len();
 
 fn main() {
-    // read config
-    let toml_str = fs::read_to_string(CONFIG_PATH).expect("could not find configuration file");
+    // Read config
+    let toml_str =
+        fs::read_to_string(config::CONFIG_PATH).expect("could not find configuration file");
     let config: config::Config =
         toml::from_str(&toml_str).expect("error parsing configuration file");
 
     let args = cli::Args::parse();
 
-    // make sure database schema is current
-    let mut conn = Connection::open(DB_PATH).unwrap();
+    // Make sure database schema is current
+    let mut conn = Connection::open(config.db_path).unwrap();
     let db_version: usize = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
@@ -562,7 +558,7 @@ fn main() {
         db_version <= NEWEST_DB_VERSION,
         "database seems to be from a more current version of workspaces"
     );
-    // iteratively apply necessary database updates
+    // Iteratively apply necessary database updates
     UPDATE_DB[db_version..].iter().for_each(|f| f(&mut conn));
 
     match args.command {

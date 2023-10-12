@@ -5,6 +5,12 @@
 ## Default filesystem to use if none is specified
 #default_filesystem = "bulk"
 
+## Location of workspaces database.
+##
+## It may be convenient to set this to be on the device your workspaces will
+## also reside on
+#db_path = "/usr/local/lib/workspaces/workspaces.db"
+
 ## A definition of a filesystem named `bulk`
 #[filesystems.bulk]
 
