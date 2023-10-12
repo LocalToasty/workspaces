@@ -40,7 +40,7 @@ fn default_db_path() -> PathBuf {
     PathBuf::from("/usr/local/lib/workspaces/workspaces.db")
 }
 
-/// A filesystem workpsaces can be created in
+/// A filesystem workspaces can be created in
 #[derive(Debug, Deserialize)]
 pub struct Filesystem {
     /// ZFS filesystem / volume which will act as the root for the datasets
@@ -51,6 +51,9 @@ pub struct Filesystem {
     /// Days after which an expired dataset will be removed
     #[serde(deserialize_with = "from_days")]
     pub expired_retention: Duration,
+    /// Snapshot
+    #[serde(default)]
+    pub snapshot: bool,
     /// Whether datasets can be created / extended
     #[serde(default)]
     pub disabled: bool,

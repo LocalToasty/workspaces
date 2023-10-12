@@ -476,6 +476,7 @@ fn filesystems(
     table.printstd();
 }
 
+//TODO Rename to something more meaningful... maybe "maintain"?
 fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem>) {
     let transaction = conn.transaction().unwrap();
     {
@@ -498,6 +499,7 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                 .expect("unknown filesystem name");
             let volume = to_volume_string(&filesystem.root, &user, &name);
             if expiration_time < Local::now() - filesystem.expired_retention {
+                // Delete workspaces expired beyond their retention date
                 if zfs::destroy(&volume).is_err() {
                     continue;
                 }
@@ -511,11 +513,19 @@ fn clean(conn: &mut Connection, filesystems: &HashMap<String, config::Filesystem
                     )
                     .unwrap();
             } else {
+                // Set recently expired workspaces to read-only
                 zfs::set_property(&volume, "readonly", "on").unwrap();
             }
         }
     }
     transaction.commit().unwrap();
+
+    // Snapshot all remaining filesystems for which this is desired
+    for filesystem in filesystems.values() {
+        if dbg!(filesystem.snapshot) {
+            zfs::snapshot(&filesystem.root).unwrap()
+        }
+    }
 }
 
 //TODO make result

@@ -1,3 +1,4 @@
+use chrono::Utc;
 use std::{
     io,
     process::{self, Command},
@@ -80,6 +81,26 @@ pub fn set_property(volume: &str, property: &str, value: &str) -> Result<(), Err
         .status()
         .map_err(Error::Command)?;
 
+    match status.success() {
+        true => Ok(()),
+        false => Err(Error::ZfsStatus(status)),
+    }
+}
+
+/// Recursively snapshot a volume
+pub fn snapshot(volume: &str) -> Result<(), Error> {
+    let status = Command::new("zfs")
+        .args(dbg!([
+            "snapshot",
+            "-r",
+            &format!(
+                "{}@{}",
+                volume,
+                Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+            )
+        ]))
+        .status()
+        .map_err(Error::Command)?;
     match status.success() {
         true => Ok(()),
         false => Err(Error::ZfsStatus(status)),

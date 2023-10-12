@@ -25,6 +25,9 @@
 ## flagged for deletion
 #expired_retention = 30
 
+## Whether to make snapshots upon maintainance
+#snapshot = false
+
 ## Whether the filesystem is disabled
 ##
 ## Workspaces cannot be created or extended on disabled filesystems.
