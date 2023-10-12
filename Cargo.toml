@@ -2,7 +2,7 @@
 name = "workspaces"
 description = "A tool for managing ephemeral data"
 authors = ["Marko van Treeck"]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 readme = "README.md"
 license = "GPL-3.0-only"
